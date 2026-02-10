@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface Item {
     id: string;
@@ -13,6 +14,7 @@ interface Item {
 
 export default function NewBundleTemplatePage() {
     const router = useRouter();
+    const { success, error } = useToast();
     const [loading, setLoading] = useState(false);
     const [items, setItems] = useState<Item[]>([]);
     const [formData, setFormData] = useState({
@@ -68,12 +70,12 @@ export default function NewBundleTemplatePage() {
                 router.push("/dashboard/bundle-templates");
                 router.refresh();
             } else {
-                const error = await response.json();
-                alert(error.error || "Failed to create bundle template");
+                const errorData = await response.json();
+                error(errorData.error || "Failed to create bundle template");
             }
-        } catch (error) {
-            console.error("Error creating bundle template:", error);
-            alert("Failed to create bundle template");
+        } catch (err) {
+            console.error("Error creating bundle template:", err);
+            error("Failed to create bundle template");
         } finally {
             setLoading(false);
         }

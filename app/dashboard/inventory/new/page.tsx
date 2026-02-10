@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import ImageUpload from "@/components/ImageUpload";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface Category {
   id: string;
@@ -13,6 +14,7 @@ interface Category {
 
 export default function NewItemPage() {
   const router = useRouter();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState({
@@ -28,6 +30,7 @@ export default function NewItemPage() {
     imageUrl1: "",
     imageUrl2: "",
     imageUrl3: "",
+    currentLocation: "",
   });
 
   useEffect(() => {
@@ -52,14 +55,17 @@ export default function NewItemPage() {
       });
 
       if (response.ok) {
+        success("Item created successfully!");
         router.push("/dashboard/inventory");
         router.refresh();
       } else {
-        alert("Failed to create item");
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
+        error(errorData.error || "Failed to create item");
       }
-    } catch (error) {
-      console.error("Error creating item:", error);
-      alert("An error occurred");
+    } catch (err) {
+      console.error("Error creating item:", err);
+      error("An error occurred while creating item");
     } finally {
       setLoading(false);
     }

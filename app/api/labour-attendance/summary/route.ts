@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 // Force dynamic rendering for this route (uses authentication)
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
-    const where: any = {};
+    const where: Prisma.LabourAttendanceWhereInput = {};
 
     if (startDate && endDate) {
       where.attendanceDate = {
@@ -52,47 +53,47 @@ export async function GET(request: NextRequest) {
         totalWages: number;
         warehouseDays: number;
         siteDays: number;
-        records: any[];
-      }
-    > = {};
-
-    attendanceRecords.forEach((record) => {
-      if (!labourSummary[record.labourName]) {
-        labourSummary[record.labourName] = {
-          labourName: record.labourName,
-          totalDays: 0,
-          totalShifts: 0,
-          totalWages: 0,
-          warehouseDays: 0,
-          siteDays: 0,
-          records: [],
-        };
-      }
-
-      const summary = labourSummary[record.labourName];
-      summary.totalDays++;
-      summary.totalShifts += record.shiftsWorked;
-      summary.totalWages += record.totalWage || 0;
-
-      if (record.shiftType === "WAREHOUSE") {
-        summary.warehouseDays++;
-      } else {
-        summary.siteDays++;
-      }
-
-      summary.records.push(record);
-    });
-
-    const summaryArray = Object.values(labourSummary).sort(
-      (a, b) => b.totalShifts - a.totalShifts
-    );
-
-    return NextResponse.json({ labourSummary: summaryArray });
-  } catch (error) {
-    console.error("Error fetching attendance summary:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch attendance summary" },
-      { status: 500 }
-    );
+        records: unknown[];
   }
+    > = { };
+
+  attendanceRecords.forEach((record) => {
+    if (!labourSummary[record.labourName]) {
+      labourSummary[record.labourName] = {
+        labourName: record.labourName,
+        totalDays: 0,
+        totalShifts: 0,
+        totalWages: 0,
+        warehouseDays: 0,
+        siteDays: 0,
+        records: [],
+      };
+    }
+
+    const summary = labourSummary[record.labourName];
+    summary.totalDays++;
+    summary.totalShifts += record.shiftsWorked;
+    summary.totalWages += record.totalWage || 0;
+
+    if (record.shiftType === "WAREHOUSE") {
+      summary.warehouseDays++;
+    } else {
+      summary.siteDays++;
+    }
+
+    summary.records.push(record);
+  });
+
+  const summaryArray = Object.values(labourSummary).sort(
+    (a, b) => b.totalShifts - a.totalShifts
+  );
+
+  return NextResponse.json({ labourSummary: summaryArray });
+} catch (error) {
+  console.error("Error fetching attendance summary:", error);
+  return NextResponse.json(
+    { error: "Failed to fetch attendance summary" },
+    { status: 500 }
+  );
+}
 }

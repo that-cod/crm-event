@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface Item {
   id: string;
@@ -13,6 +14,7 @@ interface Item {
 
 export default function NewRepairPage() {
   const router = useRouter();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [formData, setFormData] = useState({
@@ -48,12 +50,12 @@ export default function NewRepairPage() {
         router.push(`/dashboard/repairs/${data.id}`);
         router.refresh();
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to create repair request");
+        const errorData = await response.json();
+        error(errorData.error || "Failed to create repair request");
       }
-    } catch (error) {
-      console.error("Error creating repair:", error);
-      alert("An error occurred");
+    } catch (err) {
+      console.error("Error creating repair:", err);
+      error("An error occurred while creating repair");
     } finally {
       setLoading(false);
     }

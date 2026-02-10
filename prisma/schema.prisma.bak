@@ -1,0 +1,446 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model BundleTemplate {
+  id          String               @id @default(cuid())
+  name        String               @unique
+  description String?
+  baseItemId  String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  baseItem    Item                 @relation(fields: [baseItemId], references: [id], onDelete: Cascade)
+  items       BundleTemplateItem[]
+
+  @@index([baseItemId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model BundleTemplateItem {
+  id                  String         @id @default(cuid())
+  bundleTemplateId    String
+  itemId              String
+  quantityPerBaseUnit Int            @default(1)
+  bundleTemplate      BundleTemplate @relation(fields: [bundleTemplateId], references: [id], onDelete: Cascade)
+  item                Item           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleTemplateId, itemId])
+  @@index([bundleTemplateId])
+  @@index([itemId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Category {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  description   String?
+  imageUrl      String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  items         Item[]
+  subcategories Subcategory[]
+
+  @@index([name])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Challan {
+  id                 String        @id @default(cuid())
+  challanNumber      String        @unique
+  projectId          String
+  truckNumber        String?
+  driverName         String?
+  driverPhone        String?
+  movementDirection  String?
+  createdByUserId    String
+  issueDate          DateTime      @default(now())
+  expectedReturnDate DateTime?
+  remarks            String?
+  createdAt          DateTime      @default(now())
+  createdBy          User          @relation(fields: [createdByUserId], references: [id])
+  project            Project       @relation(fields: [projectId], references: [id])
+  items              ChallanItem[]
+
+  @@index([challanNumber])
+  @@index([createdByUserId])
+  @@index([issueDate])
+  @@index([projectId])
+  @@index([truckNumber])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ChallanItem {
+  id        String  @id @default(cuid())
+  challanId String
+  itemId    String
+  quantity  Int
+  notes     String?
+  challan   Challan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  item      Item    @relation(fields: [itemId], references: [id])
+
+  @@index([challanId])
+  @@index([itemId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Item {
+  id                  String               @id @default(cuid())
+  categoryId          String
+  subcategoryId       String?
+  name                String
+  description         String?
+  quantityAvailable   Int                  @default(0)
+  condition           ItemCondition        @default(GOOD)
+  cost                Float?
+  vendor              String?
+  remarks             String?
+  imageUrl1           String?
+  imageUrl2           String?
+  imageUrl3           String?
+  currentLocation     String?
+  createdAt           DateTime             @default(now())\n  updatedAt           DateTime             @updatedAt
+  // Tent Kit System fields
+  isKitComponent      Boolean              @default(false)  // Hide from main inventory if true
+  kitType             String?                               // e.g., "FULL_FRAME_TENT"
+  componentType       String?                               // e.g., "INNER", "CARPET", "PIPES"
+  quantityPerKit      Int?                                  // How many per tent (e.g., 4 for carpets)
+  bundleTemplates     BundleTemplate[]
+  bundleTemplateItems BundleTemplateItem[]
+  challanItems        ChallanItem[]
+  category            Category             @relation(fields: [categoryId], references: [id])
+  subcategory         Subcategory?         @relation(fields: [subcategoryId], references: [id])
+  maintenanceRecords  MaintenanceRecord[]
+  purchaseOrderItems  PurchaseOrderItem[]
+  repairQueue         RepairQueue[]
+  scrapRecords        ScrapRecord[]
+  siteInventory       SiteInventory[]
+  stockMovements      StockMovement[]
+
+  @@index([categoryId])
+  @@index([condition])
+  @@index([currentLocation])
+  @@index([name])
+  @@index([subcategoryId])
+  @@index([isKitComponent])
+  @@index([kitType])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model LabourAttendance {
+  id             String    @id @default(cuid())
+  labourName     String
+  shiftType      ShiftType
+  siteId         String?
+  attendanceDate DateTime
+  shiftsWorked   Float
+  wagePerShift   Float?
+  incentive      Float?    @default(0)
+  totalWage      Float?
+  notes          String?
+  markedByUserId String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  markedBy       User      @relation(fields: [markedByUserId], references: [id])
+  site           Site?     @relation(fields: [siteId], references: [id])
+
+  @@index([attendanceDate])
+  @@index([labourName])
+  @@index([shiftType])
+  @@index([siteId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model MaintenanceRecord {
+  id               String            @id @default(cuid())
+  itemId           String
+  status           MaintenanceStatus @default(PENDING)
+  notes            String?
+  assignedToUserId String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  assignedTo       User?             @relation(fields: [assignedToUserId], references: [id])
+  item             Item              @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([status])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Project {
+  id             String          @id @default(cuid())
+  name           String
+  type           ProjectType     @default(OTHER)
+  location       String
+  siteId         String?
+  startDate      DateTime
+  endDate        DateTime?
+  status         ProjectStatus   @default(PLANNED)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  challans       Challan[]
+  site           Site?           @relation(fields: [siteId], references: [id])
+  stockMovements StockMovement[]
+
+  @@index([siteId])
+  @@index([startDate])
+  @@index([status])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model PurchaseOrder {
+  id                 String              @id @default(cuid())
+  poNumber           String              @unique
+  vendor             String
+  orderDate          DateTime
+  expectedDate       DateTime?
+  status             POStatus            @default(PENDING)
+  totalAmount        Float?
+  pdfUrl             String?
+  excelUrl           String?
+  notes              String?
+  createdByUserId    String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  createdBy          User                @relation(fields: [createdByUserId], references: [id])
+  items              PurchaseOrderItem[]
+  stockMovements     StockMovement[]
+
+  @@index([poNumber])
+  @@index([status])
+  @@index([vendor])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model PurchaseOrderItem {
+  id               String        @id @default(cuid())
+  purchaseOrderId  String
+  itemId           String
+  orderedQuantity  Int
+  receivedQuantity Int           @default(0)
+  unitCost         Float?
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  item             Item          @relation(fields: [itemId], references: [id])
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([purchaseOrderId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model RepairQueue {
+  id               String       @id @default(cuid())
+  itemId           String
+  status           RepairStatus @default(PENDING)
+  assignedToUserId String?
+  technicianName   String?
+  vendorName       String?
+  repairCost       Float?
+  estimatedDays    Int?
+  notes            String?
+  startDate        DateTime?
+  completedDate    DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  assignedTo       User?        @relation(fields: [assignedToUserId], references: [id])
+  item             Item         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([assignedToUserId])
+  @@index([itemId])
+  @@index([status])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ScrapRecord {
+  id             String          @id @default(cuid())
+  itemId         String
+  reason         String
+  disposalMethod DisposalMethod?
+  disposalDate   DateTime
+  valueRealized  Float?
+  disposalNotes  String?
+  approvedBy     String?
+  createdAt      DateTime        @default(now())
+  item           Item            @relation(fields: [itemId], references: [id])
+
+  @@index([disposalDate])
+  @@index([itemId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Site {
+  id                 String             @id @default(cuid())
+  name               String             @unique
+  location           String
+  description        String?
+  isActive           Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  labourAttendances  LabourAttendance[]
+  projects           Project[]
+  siteInventory      SiteInventory[]
+
+  @@index([name])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model SiteInventory {
+  id                 String    @id @default(cuid())
+  siteId             String
+  shiftType          ShiftType
+  itemId             String
+  quantityDeployed   Int
+  deployedDate       DateTime  @default(now())
+  expectedReturnDate DateTime?
+  actualReturnDate   DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  item               Item      @relation(fields: [itemId], references: [id])
+  site               Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, itemId])
+  @@index([itemId])
+  @@index([siteId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model StockMovement {
+  id                String         @id @default(cuid())
+  itemId            String
+  projectId         String?
+  purchaseOrderId   String?
+  movementType      MovementType
+  quantity          Int
+  previousQuantity  Int
+  newQuantity       Int
+  conditionAfter    String?
+  notes             String?
+  performedByUserId String
+  createdAt         DateTime       @default(now())
+  item              Item           @relation(fields: [itemId], references: [id])
+  performedBy       User           @relation(fields: [performedByUserId], references: [id])
+  project           Project?       @relation(fields: [projectId], references: [id])
+  purchaseOrder     PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+
+  @@index([createdAt])
+  @@index([itemId])
+  @@index([movementType])
+  @@index([performedByUserId])
+  @@index([projectId])
+  @@index([purchaseOrderId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Subcategory {
+  id          String   @id @default(cuid())
+  categoryId  String
+  name        String
+  description String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       Item[]
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model User {
+  id                 String              @id @default(cuid())
+  name               String
+  email              String              @unique
+  passwordHash       String
+  role               UserRole            @default(VIEWER)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  challans           Challan[]
+  labourAttendances  LabourAttendance[]
+  maintenanceRecords MaintenanceRecord[]
+  purchaseOrders     PurchaseOrder[]
+  repairQueue        RepairQueue[]
+  stockMovements     StockMovement[]
+
+  @@index([email])
+  @@index([role])
+}
+
+enum DisposalMethod {
+  SALE
+  DESTRUCTION
+  DONATION
+  RECYCLING
+}
+
+enum ItemCondition {
+  GOOD
+  REPAIR_NEEDED
+  DAMAGED
+  REPLACED
+  SCRAP
+}
+
+enum MaintenanceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum MovementType {
+  INWARD
+  OUTWARD
+  RETURN
+  PURCHASE
+  SALE
+}
+
+enum POStatus {
+  PENDING
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CANCELLED
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+}
+
+enum ProjectType {
+  CAMP
+  FESTIVAL
+  CORPORATE_EVENT
+  RETREAT
+  RENTAL
+  OTHER
+}
+
+enum RepairStatus {
+  PENDING
+  IN_REPAIR
+  COMPLETED
+  SCRAPPED
+}
+
+enum ShiftType {
+  WAREHOUSE
+  SITE
+}
+
+enum UserRole {
+  ADMIN
+  INVENTORY_MANAGER
+  VIEWER
+}

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getTodayString } from "@/lib/date-utils";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface Item {
   id: string;
@@ -12,12 +14,13 @@ interface Item {
 
 export default function NewPurchaseOrderPage() {
   const router = useRouter();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [formData, setFormData] = useState({
     poNumber: "",
     vendor: "",
-    orderDate: new Date().toISOString().split("T")[0],
+    orderDate: getTodayString(),
     expectedDate: "",
     totalAmount: "",
     pdfUrl: "",
@@ -78,12 +81,12 @@ export default function NewPurchaseOrderPage() {
         router.push(`/dashboard/purchase-orders/${data.id}`);
         router.refresh();
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to create purchase order");
+        const errorData = await response.json();
+        error(errorData.error || "Failed to create purchase order");
       }
-    } catch (error) {
-      console.error("Error creating purchase order:", error);
-      alert("An error occurred");
+    } catch (err) {
+      console.error("Error creating purchase order:", err);
+      error("An error occurred while creating purchase order");
     } finally {
       setLoading(false);
     }
@@ -141,10 +144,11 @@ export default function NewPurchaseOrderPage() {
                   type="date"
                   required
                   className="input"
-                  value={formData.orderDate}
+                  value={formData.orderDate || ""}
                   onChange={(e) =>
                     setFormData({ ...formData, orderDate: e.target.value })
                   }
+                  max={getTodayString()}
                 />
               </div>
 
@@ -153,10 +157,11 @@ export default function NewPurchaseOrderPage() {
                 <input
                   type="date"
                   className="input"
-                  value={formData.expectedDate}
+                  value={formData.expectedDate || ""}
                   onChange={(e) =>
                     setFormData({ ...formData, expectedDate: e.target.value })
                   }
+                  min={getTodayString()}
                 />
               </div>
 

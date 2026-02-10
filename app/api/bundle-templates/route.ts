@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { canCreateProjects } from "@/lib/permissions";
 
 // Force dynamic rendering for this route (uses authentication)
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const baseItemId = searchParams.get("baseItemId");
 
-    const where: any = {};
+    const where: Prisma.BundleTemplateWhereInput = {};
     if (baseItemId) where.baseItemId = baseItemId;
 
     const templates = await prisma.bundleTemplate.findMany({
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
         description: description || null,
         baseItemId,
         items: {
-          create: (items || []).map((item: any) => ({
+          create: (items || []).map((item: { itemId: string; quantityPerBaseUnit?: number }) => ({
             itemId: item.itemId,
             quantityPerBaseUnit: item.quantityPerBaseUnit || 1,
           })),

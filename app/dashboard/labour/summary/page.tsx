@@ -4,6 +4,15 @@ import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Link from "next/link";
 
+interface AttendanceRecord {
+  id: string;
+  date: string;
+  shiftsWorked: string | number;
+  totalWage: string | number | null;
+  locationType: string;
+}
+
+
 interface LabourSummary {
   labourName: string;
   totalDays: number;
@@ -11,7 +20,7 @@ interface LabourSummary {
   totalWages: number;
   warehouseDays: number;
   siteDays: number;
-  records: any[];
+  records: AttendanceRecord[];
 }
 
 export default function LabourSummaryPage() {
@@ -104,10 +113,11 @@ export default function LabourSummaryPage() {
               <input
                 type="date"
                 className="input"
-                value={dateRange.startDate}
+                value={dateRange.startDate || ""}
                 onChange={(e) =>
                   setDateRange({ ...dateRange, startDate: e.target.value })
                 }
+                max={new Date().toISOString().split("T")[0]}
               />
             </div>
 
@@ -118,10 +128,11 @@ export default function LabourSummaryPage() {
               <input
                 type="date"
                 className="input"
-                value={dateRange.endDate}
+                value={dateRange.endDate || ""}
                 onChange={(e) =>
                   setDateRange({ ...dateRange, endDate: e.target.value })
                 }
+                max={new Date().toISOString().split("T")[0]}
               />
             </div>
           </div>
@@ -223,7 +234,7 @@ export default function LabourSummaryPage() {
                                 Attendance Records:
                               </h4>
                               <div className="grid grid-cols-1 gap-2">
-                                {labour.records.map((record: any) => (
+                                {labour.records.map((record: AttendanceRecord) => (
                                   <div
                                     key={record.id}
                                     className="flex justify-between items-center p-2 bg-white rounded border border-gray-200 text-sm"
@@ -236,11 +247,10 @@ export default function LabourSummaryPage() {
                                       </span>
                                       <span className="mx-2">•</span>
                                       <span
-                                        className={`px-2 py-0.5 rounded text-xs ${
-                                          record.locationType === "WAREHOUSE"
-                                            ? "bg-blue-100 text-blue-700"
-                                            : "bg-green-100 text-green-700"
-                                        }`}
+                                        className={`px-2 py-0.5 rounded text-xs ${record.locationType === "WAREHOUSE"
+                                          ? "bg-blue-100 text-blue-700"
+                                          : "bg-green-100 text-green-700"
+                                          }`}
                                       >
                                         {record.locationType}
                                       </span>
@@ -248,7 +258,7 @@ export default function LabourSummaryPage() {
                                     <div className="flex items-center gap-4">
                                       <span className="text-orange-600 font-semibold">
                                         {parseFloat(
-                                          record.shiftsWorked
+                                          String(record.shiftsWorked)
                                         ).toFixed(1)}{" "}
                                         shifts
                                       </span>
@@ -256,7 +266,7 @@ export default function LabourSummaryPage() {
                                         <span className="text-green-700 font-medium">
                                           ₹
                                           {parseFloat(
-                                            record.totalWage
+                                            String(record.totalWage)
                                           ).toFixed(2)}
                                         </span>
                                       )}

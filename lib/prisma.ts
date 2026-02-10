@@ -9,13 +9,27 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 /**
- * Creates Prisma client with appropriate logging
+ * Creates Prisma client with appropriate logging configuration.
+ * Connection pooling is managed by Supabase's pgBouncer (via ?pgbouncer=true parameter).
  */
 function createPrismaClient(): PrismaClient {
+  // Configure datasource URL to disable prepared statements (fixes "prepared statement does not exist" error)
+  // This is critical when using connection poolers or when connections are reused across requests
+  const datasourceUrl = process.env.DATABASE_URL
+    ? `${process.env.DATABASE_URL}${process.env.DATABASE_URL.includes('?') ? '&' : '?'}pgbouncer=true&connect_timeout=15`
+    : undefined;
+
   return new PrismaClient({
+    datasourceUrl,
     log: process.env.NODE_ENV === 'development'
       ? ['query', 'error', 'warn']
       : ['error'],
+    // Configure transaction timeout settings to prevent long-running transactions
+    transactionOptions: {
+      maxWait: 5000,      // Maximum time (5s) to wait to start a transaction
+      timeout: 10000,     // Maximum time (10s) for transaction to complete
+      isolationLevel: 'ReadCommitted', // ReadCommitted isolation level
+    },
   })
 }
 

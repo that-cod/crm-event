@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Link from "next/link";
+import SiteInventoryClient from "./SiteInventoryClient";
 
 export default async function SiteInventoryPage({
   params,
@@ -23,6 +24,22 @@ export default async function SiteInventoryPage({
         include: {
           category: true,
           subcategory: true,
+          bundleTemplates: {
+            include: {
+              items: {
+                include: {
+                  item: {
+                    select: {
+                      id: true,
+                      name: true,
+                      componentType: true,
+                      quantityAvailable: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -96,93 +113,7 @@ export default async function SiteInventoryPage({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="table">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="table-header">Item Name</th>
-                    <th className="table-header">Category</th>
-                    <th className="table-header">Quantity</th>
-                    <th className="table-header">Deployed Date</th>
-                    <th className="table-header">Expected Return</th>
-                    <th className="table-header">Actual Return</th>
-                    <th className="table-header">Status</th>
-                    <th className="table-header">Notes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {siteInventory.map((inv) => {
-                    const isOverdue =
-                      !inv.actualReturnDate &&
-                      inv.expectedReturnDate &&
-                      new Date(inv.expectedReturnDate) < new Date();
-
-                    return (
-                      <tr key={inv.id} className={isOverdue ? "bg-red-50" : ""}>
-                        <td className="table-cell">
-                          <Link
-                            href={`/dashboard/inventory/${inv.item.id}`}
-                            className="text-primary-600 hover:text-primary-700 font-medium"
-                          >
-                            {inv.item.name}
-                          </Link>
-                        </td>
-                        <td className="table-cell">
-                          <div>
-                            <p className="text-sm">{inv.item.category.name}</p>
-                            {inv.item.subcategory && (
-                              <p className="text-xs text-gray-500">
-                                {inv.item.subcategory.name}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="table-cell">
-                          <span className="font-semibold text-lg">
-                            {inv.quantityDeployed}
-                          </span>
-                        </td>
-                        <td className="table-cell text-sm">
-                          {new Date(inv.deployedDate).toLocaleDateString()}
-                        </td>
-                        <td className="table-cell text-sm">
-                          {inv.expectedReturnDate
-                            ? new Date(inv.expectedReturnDate).toLocaleDateString()
-                            : "—"}
-                        </td>
-                        <td className="table-cell text-sm">
-                          {inv.actualReturnDate ? (
-                            <span className="text-green-600 font-medium">
-                              {new Date(inv.actualReturnDate).toLocaleDateString()}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="table-cell">
-                          {inv.actualReturnDate ? (
-                            <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                              Returned
-                            </span>
-                          ) : isOverdue ? (
-                            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
-                              Overdue
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">
-                              Deployed
-                            </span>
-                          )}
-                        </td>
-                        <td className="table-cell text-xs text-gray-600 max-w-xs truncate">
-                          {inv.notes || "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <SiteInventoryClient siteInventory={siteInventory} />
           )}
         </div>
       </div>

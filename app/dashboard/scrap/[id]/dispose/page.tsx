@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface ScrapRecord {
   id: string;
@@ -23,6 +24,7 @@ export default function DisposeScrapPage({
   params: { id: string };
 }) {
   const router = useRouter();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [scrapRecord, setScrapRecord] = useState<ScrapRecord | null>(null);
@@ -41,7 +43,7 @@ export default function DisposeScrapPage({
       })
       .catch((err) => {
         console.error("Error loading scrap record:", err);
-        alert("Failed to load scrap record");
+        error("Failed to load scrap record");
         setLoading(false);
       });
   }, [params.id]);
@@ -58,16 +60,16 @@ export default function DisposeScrapPage({
       });
 
       if (response.ok) {
-        alert("Scrap disposed successfully!");
+        success("Scrap disposed successfully!");
         router.push(`/dashboard/scrap/${params.id}`);
         router.refresh();
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to dispose scrap");
+        const errorData = await response.json();
+        error(errorData.error || "Failed to dispose scrap");
       }
-    } catch (error) {
-      console.error("Error disposing scrap:", error);
-      alert("An error occurred");
+    } catch (err) {
+      console.error("Error disposing scrap:", err);
+      error("An error occurred while disposing scrap");
     } finally {
       setSubmitting(false);
     }

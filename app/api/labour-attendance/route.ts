@@ -2,13 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createLabourAttendanceSchema, validateRequest } from "@/lib/validations";
 import { Prisma, ShiftType } from "@prisma/client";
+import {
+  handleApiError,
+  unauthorizedError,
+  validationError,
+  createdResponse,
+  successResponse,
+} from "@/lib/api-error-handler";
+import {
+  labourAttendanceSchema,
+  validateRequestBody,
+} from "@/lib/validation-schemas";
 
 // GET /api/labour-attendance - List all attendance records
 export async function GET(request: NextRequest) {
+  let session;
+
   try {
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -76,54 +88,45 @@ export async function GET(request: NextRequest) {
       uniqueLabourers: new Set(attendanceRecords.map((a) => a.labourName)).size,
     };
 
-    return NextResponse.json({ attendanceRecords, summary });
-  } catch (error) {
-    console.error("Error fetching attendance records:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch attendance records" },
-      { status: 500 }
-    );
+    return successResponse({ attendanceRecords, summary });
+  } catch (error: unknown) {
+    return handleApiError(error, {
+      operation: "fetch labour attendance records",
+      userId: session?.user?.id,
+    });
   }
 }
 
 // POST /api/labour-attendance - Create new attendance record
 export async function POST(request: NextRequest) {
+  let session;
+  let labourName: string | undefined;
+  let attendanceDate: string | undefined;
+
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    session = await getServerSession(authOptions);
+    if (!session || !session.user?.id) {
+      return unauthorizedError("Authentication required");
     }
 
-    // CRITICAL FIX: Ensure user ID exists before proceeding
-    if (!session.user?.id) {
-      return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-    }
-
-    const body = await request.json();
-
-    // Validate input with Zod
-    const validation = validateRequest(createLabourAttendanceSchema, body);
+    // Validate request body
+    const validation = await validateRequestBody(request, labourAttendanceSchema);
     if (!validation.success) {
-      return NextResponse.json({ error: validation.error }, { status: 400 });
+      return validationError(validation.errors.join("; "));
     }
 
-    const {
-      labourName,
-      attendanceDate,
-      shiftType,
-      siteId,
-      shiftsWorked,
-      wagePerShift,
-      incentive,
-      notes,
-    } = validation.data;
+    const data = validation.data;
+    labourName = data.labourName;
+    attendanceDate = data.attendanceDate;
+    const shiftType = data.shiftType;
+    const siteId = data.siteId;
+    const shiftsWorked = Number(data.shiftsWorked);
+    const wagePerShift = data.wagePerShift ? Number(data.wagePerShift) : null;
+    const notes = data.notes;
 
     // Validate site for SITE shift type
     if (shiftType === "SITE" && !siteId) {
-      return NextResponse.json(
-        { error: "Site is required for site attendance" },
-        { status: 400 }
-      );
+      return validationError("Site is required for site attendance");
     }
 
     // Verify site exists if provided
@@ -132,13 +135,12 @@ export async function POST(request: NextRequest) {
         where: { id: siteId },
       });
       if (!site) {
-        return NextResponse.json({ error: "Site not found" }, { status: 404 });
+        return validationError("Site not found");
       }
     }
 
     // Calculate total wage
-    const incentiveValue = incentive ?? 0;
-    const totalWage = wagePerShift ? wagePerShift * shiftsWorked + incentiveValue : null;
+    const totalWage = wagePerShift ? wagePerShift * shiftsWorked : null;
 
     const attendance = await prisma.labourAttendance.create({
       data: {
@@ -148,10 +150,9 @@ export async function POST(request: NextRequest) {
         siteId: shiftType === "SITE" ? siteId : null,
         shiftsWorked,
         wagePerShift: wagePerShift || null,
-        incentive: incentiveValue,
         totalWage: totalWage,
         notes: notes || null,
-        markedByUserId: session.user.id, // FIXED: No more || "" fallback
+        markedByUserId: session.user.id,
       },
       include: {
         site: true,
@@ -159,13 +160,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(attendance, { status: 201 });
-  } catch (error) {
-    console.error("Error creating attendance record:", error);
-    return NextResponse.json(
-      { error: "Failed to create attendance record" },
-      { status: 500 }
-    );
+    return createdResponse(attendance);
+  } catch (error: unknown) {
+    return handleApiError(error, {
+      operation: "create labour attendance",
+      userId: session?.user?.id,
+      additionalInfo: labourName && attendanceDate ? { labourName, attendanceDate } : undefined,
+    });
   }
 }
-

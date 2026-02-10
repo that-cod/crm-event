@@ -65,12 +65,19 @@ export default async function PurchaseOrderDetailPage({
         subtitle={`Vendor: ${purchaseOrder.vendor}`}
         action={
           <div className="flex gap-2">
+            <Link
+              href={`/dashboard/purchase-orders/${purchaseOrder.id}/print`}
+              target="_blank"
+              className="btn btn-secondary"
+            >
+              🖨️ Print / Download PDF
+            </Link>
             {purchaseOrder.status !== "FULLY_RECEIVED" && (
               <Link
                 href={`/dashboard/purchase-orders/${purchaseOrder.id}/receive`}
                 className="btn btn-primary"
               >
-                Receive Delivery
+                📦 Receive Delivery
               </Link>
             )}
             <Link
@@ -140,12 +147,12 @@ export default async function PurchaseOrderDetailPage({
                 <p className="mt-1">
                   <span
                     className={`px-3 py-1 rounded-full text-sm font-medium ${purchaseOrder.status === "FULLY_RECEIVED"
-                        ? "bg-green-100 text-green-800"
-                        : purchaseOrder.status === "PARTIALLY_RECEIVED"
-                          ? "bg-orange-100 text-orange-800"
-                          : purchaseOrder.status === "CANCELLED"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-blue-100 text-blue-800"
+                      ? "bg-green-100 text-green-800"
+                      : purchaseOrder.status === "PARTIALLY_RECEIVED"
+                        ? "bg-orange-100 text-orange-800"
+                        : purchaseOrder.status === "CANCELLED"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-blue-100 text-blue-800"
                       }`}
                   >
                     {purchaseOrder.status.replace("_", " ")}

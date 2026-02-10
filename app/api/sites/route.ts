@@ -14,6 +14,9 @@ export async function GET() {
     }
 
     const sites = await prisma.site.findMany({
+      where: {
+        isActive: true, // Only fetch active sites
+      },
       include: {
         _count: {
           select: {
@@ -28,7 +31,7 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(sites);
+    return NextResponse.json(sites); // Return array directly
   } catch (error) {
     console.error("Error fetching sites:", error);
     return NextResponse.json(
@@ -54,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const { name, location, description, isActive } = validation.data;
+    const { name, location, description, isActive, deployedItems } = validation.data;
 
     // Check if site name already exists
     const existing = await prisma.site.findUnique({
@@ -68,13 +71,81 @@ export async function POST(request: Request) {
       );
     }
 
-    const site = await prisma.site.create({
-      data: {
-        name,
-        location,
-        description,
-        isActive,
-      },
+    // If items provided, validate quantities available (OPTIMIZED: batch query)
+    if (deployedItems && deployedItems.length > 0) {
+      const itemIds = deployedItems.map(di => di.itemId);
+      const itemsData = await prisma.item.findMany({
+        where: { id: { in: itemIds } },
+        select: { id: true, quantityAvailable: true, name: true },
+      });
+
+      // Create lookup map
+      const itemMap = new Map(itemsData.map(i => [i.id, i]));
+
+      // Validate all items
+      for (const deployedItem of deployedItems) {
+        const item = itemMap.get(deployedItem.itemId);
+
+        if (!item) {
+          return NextResponse.json(
+            { error: `Item not found: ${deployedItem.itemId}` },
+            { status: 400 }
+          );
+        }
+
+        if (item.quantityAvailable < deployedItem.quantityDeployed) {
+          return NextResponse.json(
+            {
+              error: `Insufficient quantity for ${item.name}. Available: ${item.quantityAvailable}, Requested: ${deployedItem.quantityDeployed}`
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Create site and deploy items in a transaction
+    const site = await prisma.$transaction(async (tx) => {
+      // 1. Create site
+      const newSite = await tx.site.create({
+        data: {
+          name,
+          location,
+          description,
+          isActive,
+        },
+      });
+
+      // 2. If items provided, create SiteInventory records and update quantities
+      if (deployedItems && deployedItems.length > 0) {
+        // Create SiteInventory records
+        await tx.siteInventory.createMany({
+          data: deployedItems.map((item) => ({
+            siteId: newSite.id,
+            itemId: item.itemId,
+            quantityDeployed: item.quantityDeployed,
+            shiftType: item.shiftType,
+            expectedReturnDate: item.expectedReturnDate
+              ? new Date(item.expectedReturnDate)
+              : null,
+            notes: item.notes,
+          })),
+        });
+
+        // Update item quantities (decrease available quantity)
+        for (const item of deployedItems) {
+          await tx.item.update({
+            where: { id: item.itemId },
+            data: {
+              quantityAvailable: {
+                decrement: item.quantityDeployed,
+              },
+            },
+          });
+        }
+      }
+
+      return newSite;
     });
 
     return NextResponse.json(site, { status: 201 });

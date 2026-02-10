@@ -3,13 +3,25 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canCreateChallans } from "@/lib/permissions";
-import { createChallanSchema, validateRequest, ChallanItemInput } from "@/lib/validations";
 import { Prisma } from "@prisma/client";
+import {
+  handleApiError,
+  unauthorizedError,
+  validationError,
+  createdResponse,
+  successResponse,
+} from "@/lib/api-error-handler";
+import {
+  challanCreateSchema,
+  validateRequestBody,
+} from "@/lib/validation-schemas";
 
 // GET /api/challans
 export async function GET(request: Request) {
+  let session;
+
   try {
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -36,33 +48,41 @@ export async function GET(request: Request) {
       },
     });
 
-    return NextResponse.json(challans);
-  } catch (error) {
-    console.error("Error fetching challans:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch challans" },
-      { status: 500 }
-    );
+    return successResponse(challans);
+  } catch (error: unknown) {
+    return handleApiError(error, {
+      operation: "fetch challans",
+      userId: session?.user?.id,
+    });
   }
 }
 
 // POST /api/challans - Create challan with automatic stock deduction
 export async function POST(request: Request) {
+  let session;
+  let projectId: string | undefined;
+
   try {
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
     if (!session || !canCreateChallans(session.user.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      return unauthorizedError("You don't have permission to create challans");
     }
 
-    const body = await request.json();
-
-    // Validate input with Zod
-    const validation = validateRequest(createChallanSchema, body);
-    if (!validation.success) {
-      return NextResponse.json({ error: validation.error }, { status: 400 });
+    // Validate request body
+    const validationResult = await validateRequestBody(request, challanCreateSchema);
+    if (!validationResult.success) {
+      return validationError(validationResult.errors.join("; "));
     }
 
-    const { projectId, items, expectedReturnDate, remarks, truckNumber, driverName, driverPhone, movementDirection } = validation.data;
+    const validatedData = validationResult.data;
+    projectId = validatedData.projectId;
+    const items = validatedData.items;
+    const expectedReturnDate = validatedData.expectedReturnDate;
+    const remarks = validatedData.remarks;
+    const truckNumber = validatedData.truckNumber;
+    const driverName = validatedData.driverName;
+    const driverPhone = validatedData.driverPhone;
+    const movementDirection = validatedData.movementDirection;
 
     // Use transaction to create challan and deduct stock
     // CRITICAL: Generate challan number INSIDE transaction to prevent race condition
@@ -73,13 +93,22 @@ export async function POST(request: Request) {
         select: { challanNumber: true },
       });
 
+
       const challanNumber = generateChallanNumber(lastChallan?.challanNumber);
 
-      // Verify stock availability for all items
+      // Verify stock availability for all items (OPTIMIZED: batch query instead of N queries)
+      const itemIds = items.map(item => item.itemId);
+      const itemsData = await tx.item.findMany({
+        where: { id: { in: itemIds } },
+        select: { id: true, name: true, quantityAvailable: true },
+      });
+
+      // Create lookup map for O(1) access
+      const itemMap = new Map(itemsData.map(i => [i.id, i]));
+
+      // Validate all items
       for (const item of items) {
-        const itemData = await tx.item.findUnique({
-          where: { id: item.itemId },
-        });
+        const itemData = itemMap.get(item.itemId);
 
         if (!itemData) {
           throw new Error(`Item not found: ${item.itemId}`);
@@ -91,6 +120,7 @@ export async function POST(request: Request) {
           );
         }
       }
+
 
       // Create challan
       const challan = await tx.challan.create({
@@ -107,7 +137,7 @@ export async function POST(request: Request) {
           driverPhone,
           movementDirection,
           items: {
-            create: items.map((item: ChallanItemInput) => ({
+            create: items.map((item) => ({
               itemId: item.itemId,
               quantity: item.quantity,
               notes: item.notes,
@@ -160,14 +190,13 @@ export async function POST(request: Request) {
       return challan;
     });
 
-    return NextResponse.json(result, { status: 201 });
-  } catch (error) {
-    console.error("Error creating challan:", error);
-    const message = error instanceof Error ? error.message : "Failed to create challan";
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return createdResponse(result);
+  } catch (error: unknown) {
+    return handleApiError(error, {
+      operation: "create challan",
+      userId: session?.user?.id,
+      resourceId: projectId,
+    });
   }
 }
 

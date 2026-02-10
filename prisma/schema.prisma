@@ -1,11 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -42,48 +42,73 @@ model Category {
   name          String        @unique
   description   String?
   imageUrl      String?
+  loadingOrder  Int           @default(999) // Truck loading sequence: Tents=1, Furniture=2, Sanitary=3, Electrical=4, Linen=5, Tools=6
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   items         Item[]
   subcategories Subcategory[]
 
   @@index([name])
+  @@index([loadingOrder])
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model Challan {
-  id                 String        @id @default(cuid())
-  challanNumber      String        @unique
-  projectId          String
-  truckNumber        String?
-  driverName         String?
-  driverPhone        String?
-  movementDirection  String?
-  createdByUserId    String
-  issueDate          DateTime      @default(now())
-  expectedReturnDate DateTime?
-  remarks            String?
-  createdAt          DateTime      @default(now())
-  createdBy          User          @relation(fields: [createdByUserId], references: [id])
-  project            Project       @relation(fields: [projectId], references: [id])
-  items              ChallanItem[]
+  id                  String        @id @default(cuid())
+  challanNumber       String        @unique
+  projectId           String
+  truckNumber         String?
+  driverName          String?
+  driverPhone         String?
+  movementDirection   String?
+  createdByUserId     String
+  issueDate           DateTime      @default(now())
+  expectedReturnDate  DateTime?
+  remarks             String?
+  createdAt           DateTime      @default(now())
+  // Challan Automation fields
+  status              ChallanStatus     @default(SENT)
+  challanType         ChallanType       @default(DELIVERY)
+  amount              Float?            // Total challan amount
+  igstPercent         Float?            @default(18)
+  cgstPercent         Float?            @default(9)
+  sgstPercent         Float?            @default(9)
+  // Transport details
+  transporterName     String?
+  lrBiltyNo           String?           // Lorry Receipt / Bilty Number
+  contactPersonName   String?
+  contactPersonNumber String?
+  dispatchFrom        String?           // Material dispatch from address
+  dispatchTo          String?           // Material dispatch to address
+  // Transfer challan fields
+  sourceSiteId        String?           // For transfer challans - source site
+  createdBy           User          @relation(fields: [createdByUserId], references: [id])
+  project             Project       @relation(fields: [projectId], references: [id])
+  sourceSite          Site?         @relation("TransferChallans", fields: [sourceSiteId], references: [id])
+  items               ChallanItem[]
 
   @@index([challanNumber])
   @@index([createdByUserId])
   @@index([issueDate])
   @@index([projectId])
   @@index([truckNumber])
+  @@index([status])
+  @@index([sourceSiteId])
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model ChallanItem {
-  id        String  @id @default(cuid())
-  challanId String
-  itemId    String
-  quantity  Int
-  notes     String?
-  challan   Challan @relation(fields: [challanId], references: [id], onDelete: Cascade)
-  item      Item    @relation(fields: [itemId], references: [id])
+  id               String                   @id @default(cuid())
+  challanId        String
+  itemId           String
+  quantity         Int
+  notes            String?
+  // Return tracking fields
+  returnedQuantity Int                      @default(0)
+  returnStatus     ChallanItemReturnStatus? // Status of returned items
+  returnNotes      String?
+  challan          Challan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  item             Item    @relation(fields: [itemId], references: [id])
 
   @@index([challanId])
   @@index([itemId])
@@ -107,6 +132,14 @@ model Item {
   currentLocation     String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+  // Challan Automation fields
+  weightPerUnit       Float?               // Weight in Kg (for truck capacity calculation)
+  hsnCode             String?              // HSN/SAC code for GST
+  // Tent Kit System fields
+  isKitComponent      Boolean              @default(false) // Hide from main inventory if true
+  kitType             String? // e.g., "FULL_FRAME_TENT"
+  componentType       String? // e.g., "INNER", "CARPET", "PIPES"
+  quantityPerKit      Int? // How many per tent (e.g., 4 for carpets)
   bundleTemplates     BundleTemplate[]
   bundleTemplateItems BundleTemplateItem[]
   challanItems        ChallanItem[]
@@ -124,6 +157,8 @@ model Item {
   @@index([currentLocation])
   @@index([name])
   @@index([subcategoryId])
+  @@index([isKitComponent])
+  @@index([kitType])
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -148,6 +183,118 @@ model LabourAttendance {
   @@index([labourName])
   @@index([shiftType])
   @@index([siteId])
+}
+
+/// Labour master data - stores labour/employee information per site
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Labour {
+  id               String              @id @default(cuid())
+  name             String
+  phone            String?
+  address          String?
+  defaultDailyRate Float               @default(500)
+  siteId           String
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  // Relations
+  site             Site                @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  attendanceRecords AttendanceRecord[]
+  attendanceSheets  AttendanceSheet[]
+  transactions      LabourTransaction[]
+  
+  @@unique([name, siteId]) // Prevent duplicate names per site
+  @@index([siteId])
+  @@index([name])
+}
+
+/// Daily attendance records - granular shift tracking per labour per day
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model AttendanceRecord {
+  id                String           @id @default(cuid())
+  labourId          String
+  date              DateTime
+  shifts            Float            @default(0) // 0, 0.5, 1, 1.5, 2, etc.
+  siteId            String
+  attendanceSheetId String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  // Relations
+  labour            Labour           @relation(fields: [labourId], references: [id], onDelete: Cascade)
+  site              Site             @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  attendanceSheet   AttendanceSheet? @relation(fields: [attendanceSheetId], references: [id], onDelete: SetNull)
+  
+  @@unique([labourId, date]) // One record per labour per day
+  @@index([labourId, date])
+  @@index([siteId, date])
+  @@index([attendanceSheetId])
+}
+
+/// Monthly attendance summary - aggregated data for payroll
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model AttendanceSheet {
+  id              String              @id @default(cuid())
+  labourId        String
+  month           Int                 // 1-12
+  year            Int                 // 2025, 2026, etc.
+  siteId          String
+  
+  // Attendance data (JSON array of daily shifts)
+  attendanceJson  Json                // [1, 1, 0.5, 2, 1, ...] (31 values)
+  
+  // Calculated fields
+  totalShifts     Float               @default(0)
+  dailyRate       Float
+  wages           Float               @default(0) // totalShifts × dailyRate
+  incentive       Float               @default(0) // Manually entered
+  netWages        Float               @default(0) // wages + incentive
+  
+  // Financial fields
+  openingBalance  Float               @default(0) // Auto-fetched from previous month
+  totalAdvance    Float               @default(0) // Sum of all advances
+  totalPaid       Float               @default(0) // Sum of all payments
+  netPayable      Float               @default(0) // netWages - totalAdvance + openingBalance
+  balanceDue      Float               @default(0) // netPayable - totalPaid
+  
+  // Metadata
+  status          String              @default("draft") // draft, finalized
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  finalizedAt     DateTime?
+  
+  // Relations
+  labour          Labour              @relation(fields: [labourId], references: [id], onDelete: Cascade)
+  site            Site                @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  attendanceRecords AttendanceRecord[]
+  transactions    LabourTransaction[]
+  
+  @@unique([labourId, month, year, siteId])
+  @@index([siteId, month, year])
+  @@index([labourId])
+  @@index([status])
+}
+
+/// Labour financial transactions - tracks advances and payments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model LabourTransaction {
+  id                String          @id @default(cuid())
+  labourId          String
+  attendanceSheetId String
+  type              String          // "advance" or "payment"
+  amount            Float
+  date              DateTime        @default(now())
+  description       String?
+  createdAt         DateTime        @default(now())
+  
+  // Relations
+  labour            Labour          @relation(fields: [labourId], references: [id], onDelete: Cascade)
+  attendanceSheet   AttendanceSheet @relation(fields: [attendanceSheetId], references: [id], onDelete: Cascade)
+  
+  @@index([labourId])
+  @@index([attendanceSheetId])
+  @@index([type])
+  @@index([date])
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -189,22 +336,22 @@ model Project {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model PurchaseOrder {
-  id                 String              @id @default(cuid())
-  poNumber           String              @unique
-  vendor             String
-  orderDate          DateTime
-  expectedDate       DateTime?
-  status             POStatus            @default(PENDING)
-  totalAmount        Float?
-  pdfUrl             String?
-  excelUrl           String?
-  notes              String?
-  createdByUserId    String
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  createdBy          User                @relation(fields: [createdByUserId], references: [id])
-  items              PurchaseOrderItem[]
-  stockMovements     StockMovement[]
+  id              String              @id @default(cuid())
+  poNumber        String              @unique
+  vendor          String
+  orderDate       DateTime
+  expectedDate    DateTime?
+  status          POStatus            @default(PENDING)
+  totalAmount     Float?
+  pdfUrl          String?
+  excelUrl        String?
+  notes           String?
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  createdBy       User                @relation(fields: [createdByUserId], references: [id])
+  items           PurchaseOrderItem[]
+  stockMovements  StockMovement[]
 
   @@index([poNumber])
   @@index([status])
@@ -271,16 +418,20 @@ model ScrapRecord {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model Site {
-  id                 String             @id @default(cuid())
-  name               String             @unique
-  location           String
-  description        String?
-  isActive           Boolean            @default(true)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  labourAttendances  LabourAttendance[]
-  projects           Project[]
-  siteInventory      SiteInventory[]
+  id                String             @id @default(cuid())
+  name              String             @unique
+  location          String
+  description       String?
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  labourAttendances LabourAttendance[]
+  labours           Labour[]           // New labour management system
+  attendanceRecords AttendanceRecord[] // Daily shift records
+  attendanceSheets  AttendanceSheet[]  // Monthly summary sheets
+  projects          Project[]
+  siteInventory     SiteInventory[]
+  transferChallans  Challan[]          @relation("TransferChallans") // Challans transferred from this site
 
   @@index([name])
 }
@@ -436,4 +587,45 @@ enum UserRole {
   ADMIN
   INVENTORY_MANAGER
   VIEWER
+}
+
+// Challan Automation Enums
+enum ChallanStatus {
+  DRAFT
+  SENT
+  RETURNED
+  PARTIALLY_RETURNED
+}
+
+
+enum ChallanType {
+  DELIVERY
+  RETURN
+  TRANSFER
+}
+
+enum ChallanItemReturnStatus {
+  RETURNED      // Item returned to stock
+  REPAIR        // Item sent for repair
+  SCRAP         // Item marked as scrap
+  TRANSFERRED   // Item transferred to another site/project
+}
+
+/// Model to store company settings for challans and invoices
+model CompanySettings {
+  id               String   @id @default("default")
+  companyName      String   @default("YOUR COMPANY NAME")
+  tagline          String?  @default("Event Management & Tent Rental Services")
+  registeredOffice String?
+  corporateOffice  String?
+  godownAddress    String?
+  gstin            String?
+  pan              String?
+  email            String?
+  phone            String?
+  logoUrl          String?
+  sellerState      String?  @default("DELHI")
+  sellerStateCode  String?  @default("07")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }

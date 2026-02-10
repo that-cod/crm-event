@@ -80,7 +80,7 @@ export async function POST(
           quantity: 1,
           previousQuantity: previousQty,
           newQuantity: newQty,
-          conditionAfter: itemCondition as any,
+          conditionAfter: itemCondition as string,
           notes: `Repair completed. Condition: ${itemCondition}. ${completionNotes || ""
             }`,
           performedByUserId: session.user?.id || "",

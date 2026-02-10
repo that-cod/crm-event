@@ -63,30 +63,63 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials")
         }
 
-        const user = await prisma.user.findUnique({
-          where: {
+        try {
+          const user = await prisma.user.findUnique({
+            where: {
+              email: credentials.email,
+            },
+          })
+
+          if (!user) {
+            throw new Error("Invalid credentials")
+          }
+
+          const isPasswordValid = await compare(
+            credentials.password,
+            user.passwordHash
+          )
+
+          if (!isPasswordValid) {
+            throw new Error("Invalid credentials")
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          }
+        } catch (error: unknown) {
+          // Type guard for Error objects
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          const errorCode = (error as { code?: string }).code;
+
+          // Log the actual error for debugging
+          console.error("❌ Authentication error:", {
+            message: errorMessage,
+            code: errorCode,
             email: credentials.email,
-          },
-        })
+          });
 
-        if (!user) {
-          throw new Error("Invalid credentials")
-        }
+          // Check if this is a database connection error
+          if (errorMessage?.includes("Can't reach database") ||
+            errorMessage?.includes("connection") ||
+            errorCode === 'P1001' || // Prisma connection error codes
+            errorCode === 'P1008' ||
+            errorCode === 'P1017') {
+            console.error("🔴 DATABASE CONNECTION ERROR - Please check your DATABASE_URL in .env file");
+            throw new Error(
+              "Database connection failed. Please check your database configuration and ensure the database is running."
+            )
+          }
 
-        const isPasswordValid = await compare(
-          credentials.password,
-          user.passwordHash
-        )
+          // If it's already "Invalid credentials", re-throw it
+          if (errorMessage === "Invalid credentials") {
+            throw error;
+          }
 
-        if (!isPasswordValid) {
-          throw new Error("Invalid credentials")
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
+          // For any other error, throw a generic message
+          throw new Error("Authentication failed. Please try again.")
         }
       },
     }),

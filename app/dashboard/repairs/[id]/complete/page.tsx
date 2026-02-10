@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface Repair {
   id: string;
@@ -23,6 +24,7 @@ export default function CompleteRepairPage({
   params: { id: string };
 }) {
   const router = useRouter();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [repair, setRepair] = useState<Repair | null>(null);
@@ -41,7 +43,7 @@ export default function CompleteRepairPage({
       })
       .catch((err) => {
         console.error("Error loading repair:", err);
-        alert("Failed to load repair");
+        error("Failed to load repair");
         setLoading(false);
       });
   }, [params.id]);
@@ -58,16 +60,16 @@ export default function CompleteRepairPage({
       });
 
       if (response.ok) {
-        alert("Repair completed successfully! Item restored to inventory.");
+        success("Repair completed successfully! Item restored to inventory.");
         router.push(`/dashboard/repairs/${params.id}`);
         router.refresh();
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to complete repair");
+        const errorData = await response.json();
+        error(errorData.error || "Failed to complete repair");
       }
-    } catch (error) {
-      console.error("Error completing repair:", error);
-      alert("An error occurred");
+    } catch (err) {
+      console.error("Error completing repair:", err);
+      error("An error occurred while completing repair");
     } finally {
       setSubmitting(false);
     }

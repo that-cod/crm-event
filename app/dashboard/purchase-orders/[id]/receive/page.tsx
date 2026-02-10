@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Link from "next/link";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface POItem {
   id: string;
@@ -33,6 +34,7 @@ export default function ReceiveDeliveryPage({
   params: { id: string };
 }) {
   const router = useRouter();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrder | null>(null);
@@ -57,7 +59,7 @@ export default function ReceiveDeliveryPage({
       })
       .catch((err) => {
         console.error("Error loading PO:", err);
-        alert("Failed to load purchase order");
+        error("Failed to load purchase order");
         setLoading(false);
       });
   }, [params.id]);
@@ -86,7 +88,7 @@ export default function ReceiveDeliveryPage({
       }));
 
     if (itemsToReceive.length === 0) {
-      alert("Please enter at least one quantity to receive");
+      error("Please enter at least one quantity to receive");
       setSubmitting(false);
       return;
     }
@@ -109,12 +111,12 @@ export default function ReceiveDeliveryPage({
         }
       }
 
-      alert(`Successfully received ${itemsToReceive.length} item(s)`);
+      success(`Successfully received ${itemsToReceive.length} item(s)`);
       router.push(`/dashboard/purchase-orders/${params.id}`);
       router.refresh();
-    } catch (error) {
-      console.error("Error receiving delivery:", error);
-      alert(error instanceof Error ? error.message : "An error occurred");
+    } catch (err) {
+      console.error("Error receiving delivery:", err);
+      error(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setSubmitting(false);
     }

@@ -13,18 +13,18 @@ export const idSchema = z.string().cuid();
 
 export const createItemSchema = z.object({
     categoryId: z.string().cuid("Invalid category ID"),
-    subcategoryId: z.string().cuid("Invalid subcategory ID").optional().nullable(),
+    subcategoryId: z.string().optional().nullable().transform(val => val === "" ? null : val).pipe(z.string().cuid("Invalid subcategory ID").optional().nullable()),
     name: z.string().min(1, "Name is required").max(255, "Name too long"),
-    description: z.string().max(1000, "Description too long").optional().nullable(),
-    quantityAvailable: z.coerce.number().int().min(0, "Quantity must be non-negative").default(0),
+    description: z.string().optional().nullable().transform(val => val === "" ? null : val),
+    quantityAvailable: z.coerce.number().int().min(0, "Quantity must be non-negative").optional().default(0),
     condition: z.nativeEnum(ItemCondition).default("GOOD"),
-    cost: z.coerce.number().positive("Cost must be positive").optional().nullable(),
-    vendor: z.string().max(255, "Vendor name too long").optional().nullable(),
-    remarks: z.string().max(1000, "Remarks too long").optional().nullable(),
-    imageUrl1: z.string().url("Invalid image URL").optional().nullable(),
-    imageUrl2: z.string().url("Invalid image URL").optional().nullable(),
-    imageUrl3: z.string().url("Invalid image URL").optional().nullable(),
-    currentLocation: z.string().max(255, "Location too long").optional().nullable(),
+    cost: z.string().optional().nullable().transform(val => val === "" ? null : val).pipe(z.coerce.number().positive("Cost must be positive").optional().nullable()),
+    vendor: z.string().max(255, "Vendor name too long").optional().nullable().transform(val => val === "" ? null : val),
+    remarks: z.string().max(1000, "Remarks too long").optional().nullable().transform(val => val === "" ? null : val),
+    imageUrl1: z.string().optional().nullable().transform(val => val === "" ? null : val).pipe(z.string().url("Invalid image URL").optional().nullable()),
+    imageUrl2: z.string().optional().nullable().transform(val => val === "" ? null : val).pipe(z.string().url("Invalid image URL").optional().nullable()),
+    imageUrl3: z.string().optional().nullable().transform(val => val === "" ? null : val).pipe(z.string().url("Invalid image URL").optional().nullable()),
+    currentLocation: z.string().max(255, "Location too long").optional().nullable().transform(val => val === "" ? null : val),
 });
 
 export const updateItemSchema = createItemSchema.partial().extend({
@@ -107,11 +107,11 @@ export const purchaseOrderItemSchema = z.object({
 export const createPurchaseOrderSchema = z.object({
     poNumber: z.string().min(1, "PO number is required").max(50, "PO number too long"),
     vendor: z.string().min(1, "Vendor is required").max(255, "Vendor name too long"),
-    orderDate: z.string().datetime("Invalid order date"),
-    expectedDate: z.string().datetime("Invalid expected date").optional().nullable(),
+    orderDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid order date format (use YYYY-MM-DD)"),
+    expectedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid expected date format (use YYYY-MM-DD)").optional().nullable().or(z.literal("")),
     totalAmount: z.coerce.number().positive("Amount must be positive").optional().nullable(),
-    pdfUrl: z.string().url("Invalid PDF URL").optional().nullable(),
-    excelUrl: z.string().url("Invalid Excel URL").optional().nullable(),
+    pdfUrl: z.string().url("Invalid PDF URL").optional().nullable().or(z.literal("")),
+    excelUrl: z.string().url("Invalid Excel URL").optional().nullable().or(z.literal("")),
     notes: z.string().max(1000, "Notes too long").optional().nullable(),
     items: z.array(purchaseOrderItemSchema).optional(),
 });
@@ -175,15 +175,25 @@ export type CreateLabourAttendanceInput = z.infer<typeof createLabourAttendanceS
 // Site Schemas
 // ============================================
 
+export const deployedItemSchema = z.object({
+    itemId: z.string().cuid("Invalid item ID"),
+    quantityDeployed: z.coerce.number().int().positive("Quantity must be positive"),
+    shiftType: z.nativeEnum(ShiftType),
+    expectedReturnDate: z.string().optional().nullable(),
+    notes: z.string().max(500, "Notes too long").optional().nullable(),
+});
+
 export const createSiteSchema = z.object({
     name: z.string().min(1, "Name is required").max(100, "Name too long"),
     location: z.string().min(1, "Location is required").max(500, "Location too long"),
     description: z.string().max(1000, "Description too long").optional().nullable(),
     isActive: z.boolean().default(true),
+    deployedItems: z.array(deployedItemSchema).optional(),
 });
 
 export const updateSiteSchema = createSiteSchema.partial();
 
+export type DeployedItemInput = z.infer<typeof deployedItemSchema>;
 export type CreateSiteInput = z.infer<typeof createSiteSchema>;
 export type UpdateSiteInput = z.infer<typeof updateSiteSchema>;
 
@@ -191,14 +201,20 @@ export type UpdateSiteInput = z.infer<typeof updateSiteSchema>;
 // Helper function for validation
 // ============================================
 
-export function validateRequest<T>(
-    schema: z.ZodSchema<T>,
+export function validateRequest<T extends z.ZodTypeAny>(
+    schema: T,
     data: unknown
-): { success: true; data: T } | { success: false; error: string } {
-    const result = schema.safeParse(data);
-    if (result.success) {
-        return { success: true, data: result.data };
+):
+    | { success: true; data: z.infer<T> }
+    | { success: false; error: string } {
+    try {
+        const result = schema.safeParse(data);
+        if (result.success) {
+            return { success: true, data: result.data };
+        } else {
+            return { success: false, error: result.error.errors[0].message };
+        }
+    } catch (error) {
+        return { success: false, error: "Validation failed" };
     }
-    const errors = result.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
-    return { success: false, error: errors };
 }

@@ -73,6 +73,12 @@ export default function Sidebar({ userRole }: SidebarProps) {
       show: canManage,
     },
     {
+      label: "Attendance Mgmt",
+      href: "/dashboard/attendance-management",
+      icon: "📅",
+      show: canManage,
+    },
+    {
       label: "Challans",
       href: "/dashboard/challans",
       icon: "📋",
@@ -112,11 +118,10 @@ export default function Sidebar({ userRole }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center px-6 py-3 text-sm transition-colors ${
-                isActive(item.href)
+              className={`flex items-center px-6 py-3 text-sm transition-colors ${isActive(item.href)
                   ? "bg-primary-600 text-white"
                   : "text-gray-300 hover:bg-gray-800 hover:text-white"
-              }`}
+                }`}
             >
               <span className="mr-3">{item.icon}</span>
               {item.label}

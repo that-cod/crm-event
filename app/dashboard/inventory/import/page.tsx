@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { useToast } from "@/lib/hooks/useToast";
 
 export default function ImportInventoryPage() {
   const router = useRouter();
+  const { success, error } = useToast();
   const [importing, setImporting] = useState(false);
   const [csvText, setCsvText] = useState("");
   const [results, setResults] = useState<{
@@ -37,7 +39,7 @@ export default function ImportInventoryPage() {
       const values = lines[i].split(",").map((v) => v.trim());
       if (values.length < 2) continue; // Skip empty lines
 
-      const item: any = {};
+      const item: Record<string, string> = {};
       headers.forEach((header, index) => {
         item[header] = values[index] || "";
       });
@@ -49,7 +51,7 @@ export default function ImportInventoryPage() {
 
   const handleImport = async () => {
     if (!csvText.trim()) {
-      alert("Please paste CSV data or upload a file");
+      error("Please paste CSV data or upload a file");
       return;
     }
 
@@ -60,7 +62,7 @@ export default function ImportInventoryPage() {
       const items = parseCsv(csvText);
 
       if (items.length === 0) {
-        alert("No valid items found in CSV");
+        error("No valid items found in CSV");
         setImporting(false);
         return;
       }
@@ -75,12 +77,12 @@ export default function ImportInventoryPage() {
         const data = await response.json();
         setResults(data);
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to import items");
+        const errorData = await response.json();
+        error(errorData.error || "Failed to import items");
       }
-    } catch (error) {
-      console.error("Error importing:", error);
-      alert("An error occurred during import");
+    } catch (err) {
+      console.error("Error importing:", err);
+      error("An error occurred during import");
     } finally {
       setImporting(false);
     }
@@ -254,16 +256,14 @@ export default function ImportInventoryPage() {
           {/* Results */}
           {results && (
             <div
-              className={`card ${
-                results.failed === 0
+              className={`card ${results.failed === 0
                   ? "border-green-200 bg-green-50"
                   : "border-orange-200 bg-orange-50"
-              }`}
+                }`}
             >
               <h3
-                className={`text-lg font-semibold mb-3 ${
-                  results.failed === 0 ? "text-green-900" : "text-orange-900"
-                }`}
+                className={`text-lg font-semibold mb-3 ${results.failed === 0 ? "text-green-900" : "text-orange-900"
+                  }`}
               >
                 Import Results
               </h3>

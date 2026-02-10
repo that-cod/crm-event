@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 // GET /api/repairs/:id - Get single repair details
 export async function GET(
@@ -73,7 +74,7 @@ export async function PUT(
       return NextResponse.json({ error: "Repair not found" }, { status: 404 });
     }
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
 
     if (status) updateData.status = status;
     if (assignedToUserId !== undefined) updateData.assignedToUserId = assignedToUserId;

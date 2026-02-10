@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface Item {
   id: string;
@@ -13,6 +14,7 @@ interface Item {
 
 export default function ManualTransactionPage() {
   const router = useRouter();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [transactionType, setTransactionType] = useState<"PURCHASE" | "SALE">(
@@ -64,18 +66,18 @@ export default function ManualTransactionPage() {
       });
 
       if (response.ok) {
-        alert(
+        success(
           `${transactionType === "PURCHASE" ? "Purchase" : "Sale"} recorded successfully`
         );
         router.push("/dashboard/stock-movements");
         router.refresh();
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to record transaction");
+        const errorData = await response.json();
+        error(errorData.error || "Failed to record transaction");
       }
-    } catch (error) {
-      console.error("Error recording transaction:", error);
-      alert("An error occurred");
+    } catch (err) {
+      console.error("Error recording transaction:", err);
+      error("An error occurred while recording transaction");
     } finally {
       setLoading(false);
     }
@@ -108,8 +110,8 @@ export default function ManualTransactionPage() {
                   />
                   <span
                     className={`px-4 py-2 rounded-lg text-sm font-medium ${transactionType === "PURCHASE"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-600"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-600"
                       }`}
                   >
                     📥 Purchase (Add Stock)
@@ -127,8 +129,8 @@ export default function ManualTransactionPage() {
                   />
                   <span
                     className={`px-4 py-2 rounded-lg text-sm font-medium ${transactionType === "SALE"
-                        ? "bg-red-100 text-red-800"
-                        : "bg-gray-100 text-gray-600"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-gray-100 text-gray-600"
                       }`}
                   >
                     📤 Sale (Remove Stock)
@@ -209,23 +211,23 @@ export default function ManualTransactionPage() {
             {formData.unitPrice && (
               <div
                 className={`${transactionType === "PURCHASE"
-                    ? "bg-green-50 border-green-200"
-                    : "bg-red-50 border-red-200"
+                  ? "bg-green-50 border-green-200"
+                  : "bg-red-50 border-red-200"
                   } border rounded-lg p-4`}
               >
                 <div className="flex justify-between items-center">
                   <span
                     className={`text-sm font-medium ${transactionType === "PURCHASE"
-                        ? "text-green-900"
-                        : "text-red-900"
+                      ? "text-green-900"
+                      : "text-red-900"
                       }`}
                   >
                     Total Amount:
                   </span>
                   <span
                     className={`text-2xl font-bold ${transactionType === "PURCHASE"
-                        ? "text-green-700"
-                        : "text-red-700"
+                      ? "text-green-700"
+                      : "text-red-700"
                       }`}
                   >
                     ₹{calculateTotal()}
@@ -233,8 +235,8 @@ export default function ManualTransactionPage() {
                 </div>
                 <p
                   className={`text-xs mt-1 ${transactionType === "PURCHASE"
-                      ? "text-green-600"
-                      : "text-red-600"
+                    ? "text-green-600"
+                    : "text-red-600"
                     }`}
                 >
                   {formData.quantity} units × ₹{formData.unitPrice}
@@ -293,8 +295,8 @@ export default function ManualTransactionPage() {
             {/* Warning Box */}
             <div
               className={`${transactionType === "PURCHASE"
-                  ? "bg-green-50 border-green-200"
-                  : "bg-orange-50 border-orange-200"
+                ? "bg-green-50 border-green-200"
+                : "bg-orange-50 border-orange-200"
                 } border rounded-md p-4`}
             >
               <div className="flex items-start gap-3">
@@ -304,8 +306,8 @@ export default function ManualTransactionPage() {
                 <div>
                   <p
                     className={`text-sm font-medium mb-1 ${transactionType === "PURCHASE"
-                        ? "text-green-900"
-                        : "text-orange-900"
+                      ? "text-green-900"
+                      : "text-orange-900"
                       }`}
                   >
                     {transactionType === "PURCHASE"
@@ -314,8 +316,8 @@ export default function ManualTransactionPage() {
                   </p>
                   <ul
                     className={`text-xs space-y-1 ${transactionType === "PURCHASE"
-                        ? "text-green-700"
-                        : "text-orange-700"
+                      ? "text-green-700"
+                      : "text-orange-700"
                       }`}
                   >
                     {transactionType === "PURCHASE" ? (
@@ -353,8 +355,8 @@ export default function ManualTransactionPage() {
                 type="submit"
                 disabled={loading}
                 className={`btn disabled:opacity-50 ${transactionType === "PURCHASE"
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-red-600 text-white hover:bg-red-700"
+                  ? "bg-green-600 text-white hover:bg-green-700"
+                  : "bg-red-600 text-white hover:bg-red-700"
                   }`}
               >
                 {loading

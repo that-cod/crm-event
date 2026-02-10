@@ -2,6 +2,20 @@ import { prisma } from "@/lib/prisma";
 import Header from "@/components/Header";
 import Link from "next/link";
 
+// Type definitions
+interface ChallanItem {
+  item: {
+    name: string;
+  };
+  quantity: number;
+}
+
+interface Challan {
+  id: string;
+  items: ChallanItem[];
+  [key: string]: unknown;
+}
+
 export default async function ChallansReportPage() {
   const challans = await prisma.challan.findMany({
     include: {
@@ -51,7 +65,7 @@ export default async function ChallansReportPage() {
     }
     acc[projectId].challans.push(challan);
     return acc;
-  }, {} as Record<string, { project: any; challans: any[] }>);
+  }, {} as Record<string, { project: { id: string; name: string; location: string; startDate: Date; status: string }; challans: Challan[] }>);
 
   return (
     <div>
@@ -197,7 +211,7 @@ export default async function ChallansReportPage() {
                           </td>
                           <td className="px-4 py-2 text-right font-semibold">
                             {challan.items.reduce(
-                              (sum: number, item: any) => sum + item.quantity,
+                              (sum: number, item: ChallanItem) => sum + item.quantity,
                               0
                             )}
                           </td>
@@ -236,15 +250,15 @@ export default async function ChallansReportPage() {
                     <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
                       {Array.from(
                         new Set(
-                          challans.flatMap((c: any) => c.items.map((i: any) => i.item.name))
+                          challans.flatMap((c: Challan) => c.items.map((i: ChallanItem) => i.item.name))
                         )
                       ).map((itemName) => {
                         const totalQty = challans.reduce(
                           (sum, c) =>
                             sum +
                             c.items
-                              .filter((i: any) => i.item.name === itemName)
-                              .reduce((s: number, i: any) => s + i.quantity, 0),
+                              .filter((i: ChallanItem) => i.item.name === itemName)
+                              .reduce((s: number, i: ChallanItem) => s + i.quantity, 0),
                           0
                         );
                         return (

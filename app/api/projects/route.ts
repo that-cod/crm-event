@@ -64,17 +64,86 @@ export async function POST(request: Request) {
     }
 
     const { name, type, location, siteId, startDate, endDate, status } = validation.data;
+    const deployedItems = body.deployedItems || [];
 
-    const project = await prisma.project.create({
-      data: {
-        name,
-        type,
-        location,
-        siteId: siteId || null,
-        startDate: new Date(startDate),
-        endDate: endDate ? new Date(endDate) : null,
-        status,
-      },
+    // If items provided, validate quantities available
+    if (deployedItems && deployedItems.length > 0) {
+      const itemIds = deployedItems.map((di: any) => di.itemId);
+      const itemsData = await prisma.item.findMany({
+        where: { id: { in: itemIds } },
+        select: { id: true, quantityAvailable: true, name: true },
+      });
+
+      const itemMap = new Map(itemsData.map((i) => [i.id, i]));
+
+      for (const deployedItem of deployedItems) {
+        const item = itemMap.get(deployedItem.itemId);
+        if (!item) {
+          return NextResponse.json(
+            { error: `Item not found: ${deployedItem.itemId}` },
+            { status: 400 }
+          );
+        }
+        if (item.quantityAvailable < deployedItem.quantityDeployed) {
+          return NextResponse.json(
+            {
+              error: `Insufficient quantity for ${item.name}. Available: ${item.quantityAvailable}, Requested: ${deployedItem.quantityDeployed}`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Create project and deploy items in a transaction
+    const project = await prisma.$transaction(async (tx) => {
+      const newProject = await tx.project.create({
+        data: {
+          name,
+          type,
+          location,
+          siteId: siteId || null,
+          startDate: new Date(startDate),
+          endDate: endDate ? new Date(endDate) : null,
+          status,
+        },
+      });
+
+      // If items provided, create stock movements and update quantities
+      if (deployedItems && deployedItems.length > 0) {
+        for (const item of deployedItems) {
+          const currentItem = await tx.item.findUnique({
+            where: { id: item.itemId },
+          });
+
+          if (!currentItem) continue;
+
+          const previousQuantity = currentItem.quantityAvailable;
+          const newQuantity = previousQuantity - item.quantityDeployed;
+
+          // Create stock movement
+          await tx.stockMovement.create({
+            data: {
+              itemId: item.itemId,
+              projectId: newProject.id,
+              movementType: "OUTWARD",
+              quantity: item.quantityDeployed,
+              previousQuantity,
+              newQuantity,
+              notes: item.notes || `Deployed to project: ${name}`,
+              performedByUserId: session.user.id,
+            },
+          });
+
+          // Update item quantity
+          await tx.item.update({
+            where: { id: item.itemId },
+            data: { quantityAvailable: newQuantity },
+          });
+        }
+      }
+
+      return newProject;
     });
 
     return NextResponse.json(project, { status: 201 });

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface Repair {
   id: string;
@@ -26,6 +27,7 @@ export default function UpdateRepairPage({
   params: { id: string };
 }) {
   const router = useRouter();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [repair, setRepair] = useState<Repair | null>(null);
@@ -43,9 +45,9 @@ export default function UpdateRepairPage({
         setRepair(data);
         setFormData({
           status: data.status,
-          assignedTo: data.assignedTo || "",
-          startedDate: data.startedDate
-            ? new Date(data.startedDate).toISOString().split("T")[0]
+          assignedTo: data.technicianName || data.vendorName || "",
+          startedDate: data.startDate
+            ? new Date(data.startDate).toISOString().split("T")[0]
             : "",
           notes: data.notes || "",
         });
@@ -53,7 +55,7 @@ export default function UpdateRepairPage({
       })
       .catch((err) => {
         console.error("Error loading repair:", err);
-        alert("Failed to load repair");
+        error("Failed to load repair");
         setLoading(false);
       });
   }, [params.id]);
@@ -66,19 +68,25 @@ export default function UpdateRepairPage({
       const response = await fetch(`/api/repairs/${params.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          status: formData.status,
+          technicianName: formData.assignedTo || null,
+          startDate: formData.startedDate || null,
+          notes: formData.notes || null,
+        }),
       });
 
       if (response.ok) {
+        success("Repair updated successfully");
         router.push(`/dashboard/repairs/${params.id}`);
         router.refresh();
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to update repair");
+        const errorData = await response.json();
+        error(errorData.error || "Failed to update repair");
       }
-    } catch (error) {
-      console.error("Error updating repair:", error);
-      alert("An error occurred");
+    } catch (err) {
+      console.error("Error updating repair:", err);
+      error("An error occurred while updating repair");
     } finally {
       setSubmitting(false);
     }
@@ -173,10 +181,11 @@ export default function UpdateRepairPage({
               <input
                 type="date"
                 className="input"
-                value={formData.startedDate}
+                value={formData.startedDate || ""}
                 onChange={(e) =>
                   setFormData({ ...formData, startedDate: e.target.value })
                 }
+                max={new Date().toISOString().split("T")[0]}
               />
               <p className="text-xs text-gray-500 mt-1">
                 When did the repair work begin?

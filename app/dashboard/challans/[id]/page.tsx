@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Link from "next/link";
+import ChallanEditForm from "./ChallanEditForm";
+
 
 export default async function ChallanDetailPage({
   params,
@@ -32,22 +34,50 @@ export default async function ChallanDetailPage({
   const totalItems = challan.items.length;
   const totalQuantity = challan.items.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Status badge styles
+  const statusStyles = {
+    SENT: "bg-orange-100 text-orange-800 border-orange-300",
+    RETURNED: "bg-green-100 text-green-800 border-green-300",
+    PARTIALLY_RETURNED: "bg-yellow-100 text-yellow-800 border-yellow-300",
+  };
+
+  const statusLabels = {
+    SENT: "📦 Sent",
+    RETURNED: "✓ Returned",
+    PARTIALLY_RETURNED: "⚠️ Partially Returned",
+  };
+
   return (
     <div>
       <Header
         title={`Challan ${challan.challanNumber}`}
-        subtitle="Delivery challan details"
+        subtitle={`Status: ${challan.status === "SENT" ? "Sent" : challan.status === "RETURNED" ? "Returned" : "Partially Returned"}`}
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {challan.status !== "RETURNED" && (
+              <Link
+                href={`/dashboard/challans/${challan.id}/return`}
+                className="btn bg-green-600 text-white hover:bg-green-700"
+              >
+                📥 Process Return
+              </Link>
+            )}
+            <Link
+              href={`/dashboard/challans/${challan.id}/packing-list`}
+              target="_blank"
+              className="btn btn-secondary"
+            >
+              📋 Packing List
+            </Link>
             <Link
               href={`/dashboard/challans/${challan.id}/print`}
               target="_blank"
               className="btn btn-primary"
             >
-              🖨️ Print Challan
+              🖨️ Delivery Challan
             </Link>
             <Link href="/dashboard/challans" className="btn btn-secondary">
-              ← Back to List
+              ← Back
             </Link>
           </div>
         }
@@ -87,13 +117,13 @@ export default async function ChallanDetailPage({
                 <p className="text-lg text-gray-900 mt-1">
                   {challan.expectedReturnDate
                     ? new Date(challan.expectedReturnDate).toLocaleDateString(
-                        "en-US",
-                        {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        }
-                      )
+                      "en-US",
+                      {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      }
+                    )
                     : "Not specified"}
                 </p>
               </div>
@@ -118,68 +148,27 @@ export default async function ChallanDetailPage({
             )}
           </div>
 
-          {/* Truck and Driver Information */}
-          {(challan.truckNumber ||
-            challan.driverName ||
-            challan.movementDirection) && (
-            <div className="card border-blue-200 bg-blue-50">
-              <h2 className="text-lg font-semibold mb-4 text-blue-900">
-                🚚 Truck & Driver Information
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {challan.truckNumber && (
-                  <div>
-                    <label className="text-sm font-medium text-blue-700">
-                      Truck Number
-                    </label>
-                    <p className="text-lg font-mono font-bold text-blue-900 mt-1">
-                      {challan.truckNumber}
-                    </p>
-                  </div>
-                )}
-                {challan.movementDirection && (
-                  <div>
-                    <label className="text-sm font-medium text-blue-700">
-                      Movement Direction
-                    </label>
-                    <p className="text-lg text-blue-900 mt-1">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          challan.movementDirection === "OUTWARD"
-                            ? "bg-orange-100 text-orange-800"
-                            : challan.movementDirection === "INWARD"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-purple-100 text-purple-800"
-                        }`}
-                      >
-                        {challan.movementDirection}
-                      </span>
-                    </p>
-                  </div>
-                )}
-                {challan.driverName && (
-                  <div>
-                    <label className="text-sm font-medium text-blue-700">
-                      Driver Name
-                    </label>
-                    <p className="text-lg text-blue-900 mt-1">
-                      {challan.driverName}
-                    </p>
-                  </div>
-                )}
-                {challan.driverPhone && (
-                  <div>
-                    <label className="text-sm font-medium text-blue-700">
-                      Driver Phone
-                    </label>
-                    <p className="text-lg font-mono text-blue-900 mt-1">
-                      {challan.driverPhone}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Editable Challan Details */}
+          <ChallanEditForm
+            challanId={challan.id}
+            initialData={{
+              truckNumber: challan.truckNumber,
+              driverName: challan.driverName,
+              driverPhone: challan.driverPhone,
+              transporterName: challan.transporterName,
+              lrBiltyNo: challan.lrBiltyNo,
+              contactPersonName: challan.contactPersonName,
+              contactPersonNumber: challan.contactPersonNumber,
+              dispatchFrom: challan.dispatchFrom,
+              dispatchTo: challan.dispatchTo,
+              amount: challan.amount,
+              expectedReturnDate: challan.expectedReturnDate,
+              remarks: challan.remarks,
+              status: challan.status,
+            }}
+            isDraft={challan.status === "DRAFT"}
+          />
+
 
           {/* Project Information */}
           <div className="card">
@@ -216,13 +205,12 @@ export default async function ChallanDetailPage({
                 <label className="text-sm font-medium text-gray-600">Status</label>
                 <p className="mt-1">
                   <span
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      challan.project.status === "ACTIVE"
-                        ? "bg-green-100 text-green-800"
-                        : challan.project.status === "COMPLETED"
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${challan.project.status === "ACTIVE"
+                      ? "bg-green-100 text-green-800"
+                      : challan.project.status === "COMPLETED"
                         ? "bg-gray-100 text-gray-800"
                         : "bg-blue-100 text-blue-800"
-                    }`}
+                      }`}
                   >
                     {challan.project.status}
                   </span>

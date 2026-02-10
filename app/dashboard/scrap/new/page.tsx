@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface Item {
   id: string;
@@ -14,6 +15,7 @@ interface Item {
 
 export default function NewScrapPage() {
   const router = useRouter();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -53,16 +55,16 @@ export default function NewScrapPage() {
 
       if (response.ok) {
         const data = await response.json();
-        alert("Item marked as scrap successfully");
+        success("Item marked as scrap successfully");
         router.push(`/dashboard/scrap/${data.id}`);
         router.refresh();
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to mark item as scrap");
+        const errorData = await response.json();
+        error(errorData.error || "Failed to mark item as scrap");
       }
-    } catch (error) {
-      console.error("Error creating scrap record:", error);
-      alert("An error occurred");
+    } catch (err) {
+      console.error("Error creating scrap record:", err);
+      error("An error occurred while marking item as scrap");
     } finally {
       setLoading(false);
     }

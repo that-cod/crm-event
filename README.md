@@ -289,9 +289,15 @@ Update company name, address, contact details.
 
 ### Database Connection Issues
 
+If you're experiencing login failures or seeing "Database connection failed" errors:
+
+**📖 See the [Database Connection Troubleshooting Guide](database-connection-fix.md)** for detailed step-by-step solutions.
+
+Quick checks:
 - Verify your `DATABASE_URL` is correct
 - Ensure PostgreSQL is running
 - Check network connectivity
+- Review console logs for specific error messages
 
 ### Prisma Client Not Found
 

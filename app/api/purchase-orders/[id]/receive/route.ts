@@ -16,16 +16,20 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { itemId, quantityReceived, notes } = body;
+    const { poItemId, quantityReceived, notes } = body;
+
+    if (!poItemId || !quantityReceived) {
+      return NextResponse.json(
+        { error: "Missing required fields: poItemId and quantityReceived" },
+        { status: 400 }
+      );
+    }
 
     // Use transaction for data consistency
     const result = await prisma.$transaction(async (tx) => {
-      // Get PO item
-      const poItem = await tx.purchaseOrderItem.findFirst({
-        where: {
-          purchaseOrderId: params.id,
-          itemId: itemId,
-        },
+      // Get PO item by ID
+      const poItem = await tx.purchaseOrderItem.findUnique({
+        where: { id: poItemId },
         include: {
           item: true,
           purchaseOrder: true,
@@ -36,12 +40,16 @@ export async function POST(
         throw new Error("PO item not found");
       }
 
+      // Verify this PO item belongs to the correct purchase order
+      if (poItem.purchaseOrderId !== params.id) {
+        throw new Error("PO item does not belong to this purchase order");
+      }
+
       // Check if receiving more than ordered
       const totalReceived = poItem.receivedQuantity + quantityReceived;
       if (totalReceived > poItem.orderedQuantity) {
         throw new Error(
-          `Cannot receive ${quantityReceived}. Only ${
-            poItem.orderedQuantity - poItem.receivedQuantity
+          `Cannot receive ${quantityReceived}. Only ${poItem.orderedQuantity - poItem.receivedQuantity
           } remaining.`
         );
       }
@@ -56,7 +64,7 @@ export async function POST(
 
       // Create stock movement (INWARD)
       const currentItem = await tx.item.findUnique({
-        where: { id: itemId },
+        where: { id: poItem.itemId },
       });
 
       if (!currentItem) {
@@ -68,7 +76,7 @@ export async function POST(
 
       const movement = await tx.stockMovement.create({
         data: {
-          itemId,
+          itemId: poItem.itemId,
           purchaseOrderId: params.id,
           movementType: "PURCHASE",
           quantity: quantityReceived,
@@ -81,7 +89,7 @@ export async function POST(
 
       // Update item quantity and cost
       await tx.item.update({
-        where: { id: itemId },
+        where: { id: poItem.itemId },
         data: {
           quantityAvailable: newQuantity,
           // Update cost if provided in PO
@@ -123,10 +131,11 @@ export async function POST(
     });
 
     return NextResponse.json(result, { status: 200 });
-  } catch (error: any) {
-    console.error("Error receiving delivery:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Failed to receive delivery";
+    console.error("Error receiving delivery:", errorMessage);
     return NextResponse.json(
-      { error: error.message || "Failed to receive delivery" },
+      { error: errorMessage },
       { status: 500 }
     );
   }

@@ -133,8 +133,8 @@ export default function LabourAttendancePage() {
                     key={type}
                     onClick={() => setLocationFilter(type)}
                     className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${locationFilter === type
-                        ? "bg-primary-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      ? "bg-primary-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       }`}
                   >
                     {type}
@@ -150,10 +150,11 @@ export default function LabourAttendancePage() {
               <input
                 type="date"
                 className="input"
-                value={dateRange.startDate}
+                value={dateRange.startDate || ""}
                 onChange={(e) =>
                   setDateRange({ ...dateRange, startDate: e.target.value })
                 }
+                max={new Date().toISOString().split("T")[0]}
               />
             </div>
 
@@ -164,10 +165,11 @@ export default function LabourAttendancePage() {
               <input
                 type="date"
                 className="input"
-                value={dateRange.endDate}
+                value={dateRange.endDate || ""}
                 onChange={(e) =>
                   setDateRange({ ...dateRange, endDate: e.target.value })
                 }
+                max={new Date().toISOString().split("T")[0]}
               />
             </div>
           </div>
@@ -225,8 +227,8 @@ export default function LabourAttendancePage() {
                       <td className="table-cell">
                         <span
                           className={`px-2 py-1 text-xs rounded-full font-medium ${record.locationType === "WAREHOUSE"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-green-100 text-green-800"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-green-100 text-green-800"
                             }`}
                         >
                           {record.locationType}

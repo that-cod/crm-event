@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import Header from "@/components/Header"
 import Link from "next/link"
+import DeleteProjectButton from "./DeleteProjectButton"
 
 interface ProjectDetailPageProps {
     params: {
@@ -75,9 +76,23 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                 title={project.name}
                 subtitle={`${project.type.replace("_", " ")} • ${project.location}`}
                 action={
-                    <Link href="/dashboard/projects" className="btn-secondary">
-                        ← Back to Projects
-                    </Link>
+                    <div className="flex gap-2">
+                        {(project.status === "ACTIVE" || project.status === "PLANNED") && (
+                            <Link
+                                href={`/dashboard/challans/new?projectId=${project.id}`}
+                                className="btn btn-primary"
+                            >
+                                📄 Create Challan
+                            </Link>
+                        )}
+                        <DeleteProjectButton
+                            projectId={project.id}
+                            projectName={project.name}
+                        />
+                        <Link href="/dashboard/projects" className="btn btn-secondary">
+                            ← Back to Projects
+                        </Link>
+                    </div>
                 }
             />
 
@@ -225,10 +240,10 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                                         <td className="table-cell">
                                             <span
                                                 className={`px-2 py-1 text-xs rounded-full font-medium ${movement.movementType === "OUTWARD"
-                                                        ? "bg-red-100 text-red-800"
-                                                        : movement.movementType === "INWARD"
-                                                            ? "bg-green-100 text-green-800"
-                                                            : "bg-blue-100 text-blue-800"
+                                                    ? "bg-red-100 text-red-800"
+                                                    : movement.movementType === "INWARD"
+                                                        ? "bg-green-100 text-green-800"
+                                                        : "bg-blue-100 text-blue-800"
                                                     }`}
                                             >
                                                 {movement.movementType}
