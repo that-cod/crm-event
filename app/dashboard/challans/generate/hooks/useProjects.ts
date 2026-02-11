@@ -13,10 +13,11 @@ export function useProjects() {
     useEffect(() => {
         const fetchProjects = async () => {
             try {
-                const response = await fetch("/api/projects?status=ACTIVE");
+                const response = await fetch("/api/projects");
                 if (response.ok) {
                     const data = await response.json();
-                    setProjects(data.projects || []);
+                    // API returns array directly, not wrapped in projects property
+                    setProjects(Array.isArray(data) ? data : []);
                 }
             } catch (error) {
                 console.error("Error fetching projects:", error);

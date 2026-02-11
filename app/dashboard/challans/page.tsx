@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Header from "@/components/Header";
 import Link from "next/link";
 import { canCreateChallans } from "@/lib/permissions";
+import ChallanActions from "./ChallanActions";
 
 export default async function ChallansPage() {
   const session = await getServerSession(authOptions);
@@ -46,6 +47,7 @@ export default async function ChallansPage() {
                 <tr>
                   <th className="table-header">Challan Number</th>
                   <th className="table-header">Project</th>
+                  <th className="table-header">Status</th>
                   <th className="table-header">Issue Date</th>
                   <th className="table-header">Expected Return</th>
                   <th className="table-header">Items Count</th>
@@ -56,20 +58,34 @@ export default async function ChallansPage() {
               <tbody className="divide-y divide-gray-200">
                 {challans.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-gray-500">
+                    <td colSpan={8} className="text-center py-8 text-gray-500">
                       No challans found. Create your first challan to get started.
                     </td>
                   </tr>
                 ) : (
-                  challans.map((challan) => (
-                    <tr key={challan.id}>
-                      <td className="table-cell font-mono font-semibold">
-                        {challan.challanNumber}
-                      </td>
-                      <td className="table-cell">{challan.project.name}</td>
-                      <td className="table-cell">
-                        {new Date(challan.issueDate).toLocaleDateString()}
-                      </td>
+                  challans.map((challan) => {
+                    const statusStyles = {
+                      DRAFT: "bg-gray-100 text-gray-800",
+                      SENT: "bg-blue-100 text-blue-800",
+                      RETURNED: "bg-green-100 text-green-800",
+                      PARTIALLY_RETURNED: "bg-yellow-100 text-yellow-800",
+                      CANCELLED: "bg-red-100 text-red-800",
+                    };
+                    
+                    return (
+                      <tr key={challan.id}>
+                        <td className="table-cell font-mono font-semibold">
+                          {challan.challanNumber}
+                        </td>
+                        <td className="table-cell">{challan.project.name}</td>
+                        <td className="table-cell">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusStyles[challan.status as keyof typeof statusStyles]}`}>
+                            {challan.status}
+                          </span>
+                        </td>
+                        <td className="table-cell">
+                          {new Date(challan.issueDate).toLocaleDateString()}
+                        </td>
                       <td className="table-cell">
                         {challan.expectedReturnDate
                           ? new Date(
@@ -79,23 +95,16 @@ export default async function ChallansPage() {
                       </td>
                       <td className="table-cell">{challan.items.length}</td>
                       <td className="table-cell">{challan.createdBy.name}</td>
-                      <td className="table-cell flex gap-2">
-                        <Link
-                          href={`/dashboard/challans/${challan.id}`}
-                          className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                        >
-                          View
-                        </Link>
-                        <Link
-                          href={`/dashboard/challans/${challan.id}/print`}
-                          target="_blank"
-                          className="text-green-600 hover:text-green-700 text-sm font-medium"
-                        >
-                          Print
-                        </Link>
+                      <td className="table-cell">
+                        <ChallanActions
+                          challanId={challan.id}
+                          challanNumber={challan.challanNumber}
+                          status={challan.status}
+                        />
                       </td>
                     </tr>
-                  ))
+                  );
+                  })
                 )}
               </tbody>
             </table>

@@ -11,7 +11,6 @@ import { useProjects } from "./hooks/useProjects";
 import { SiteItem, Truck, TruckItem } from "./types";
 import DraggableItem from "./components/DraggableItem";
 import TruckDropZone from "./components/TruckDropZone";
-import AddTruckDialog from "./components/AddTruckDialog";
 
 export default function GenerateChallansPage() {
     const searchParams = useSearchParams();
@@ -27,7 +26,6 @@ export default function GenerateChallansPage() {
     const [selectedProjectId, setSelectedProjectId] = useState("");
     const [trucks, setTrucks] = useState<Truck[]>([]);
     const [assignedItemIds, setAssignedItemIds] = useState<Set<string>>(new Set());
-    const [showAddTruckDialog, setShowAddTruckDialog] = useState(false);
     const [creatingChallan, setCreatingChallan] = useState(false);
     const [creatingAll, setCreatingAll] = useState(false);
 
@@ -35,12 +33,12 @@ export default function GenerateChallansPage() {
     const availableItems = siteItems.filter((item) => !assignedItemIds.has(item.itemId));
     const unassignedCount = availableItems.length;
 
-    // Handle adding new truck
-    const handleAddTruck = (capacity: number) => {
+    // Handle adding new truck (with default capacity)
+    const handleAddTruck = () => {
         const newTruck: Truck = {
             id: `truck-${Date.now()}`,
             number: trucks.length + 1,
-            capacity,
+            capacity: 5000, // Default capacity in kg
             items: [],
             totalWeight: 0,
         };
@@ -153,7 +151,7 @@ export default function GenerateChallansPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     projectId: selectedProjectId,
-                    siteId,
+                    siteId: siteId || null,
                     truck: {
                         capacity: truck.capacity,
                         items: truck.items.map((item) => ({
@@ -175,11 +173,12 @@ export default function GenerateChallansPage() {
                 router.push(`/dashboard/challans/${data.challanId}`);
             } else {
                 const data = await response.json();
+                console.error("Challan creation failed:", data);
                 error(data.error || "Failed to create challan");
             }
         } catch (err) {
             console.error("Error creating challan:", err);
-            error("An error occurred while creating challan");
+            error(err instanceof Error ? err.message : "An error occurred while creating challan");
         } finally {
             setCreatingChallan(false);
         }
@@ -213,7 +212,7 @@ export default function GenerateChallansPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     projectId: selectedProjectId,
-                    siteId,
+                    siteId: siteId || null,
                     challanType: "DELIVERY",
                     trucks: trucks
                         .filter((t) => t.items.length > 0)
@@ -234,11 +233,12 @@ export default function GenerateChallansPage() {
                 router.refresh();
             } else {
                 const data = await response.json();
+                console.error("Bulk challan creation failed:", data);
                 error(data.error || "Failed to create challans");
             }
         } catch (err) {
             console.error("Error creating challans:", err);
-            error("An error occurred while creating challans");
+            error(err instanceof Error ? err.message : "An error occurred while creating challans");
         } finally {
             setCreatingAll(false);
         }
@@ -332,7 +332,7 @@ export default function GenerateChallansPage() {
                                                 🚛 Trucks ({trucks.length})
                                             </h3>
                                             <button
-                                                onClick={() => setShowAddTruckDialog(true)}
+                                                onClick={handleAddTruck}
                                                 className="btn btn-primary btn-sm"
                                             >
                                                 + Add Truck
@@ -345,7 +345,7 @@ export default function GenerateChallansPage() {
                                                         No trucks added yet
                                                     </p>
                                                     <button
-                                                        onClick={() => setShowAddTruckDialog(true)}
+                                                        onClick={handleAddTruck}
                                                         className="btn btn-primary"
                                                     >
                                                         + Add Your First Truck
@@ -405,12 +405,6 @@ export default function GenerateChallansPage() {
                 </div>
             </div>
 
-            {/* Add Truck Dialog */}
-            <AddTruckDialog
-                isOpen={showAddTruckDialog}
-                onClose={() => setShowAddTruckDialog(false)}
-                onAdd={handleAddTruck}
-            />
         </div>
     );
 }

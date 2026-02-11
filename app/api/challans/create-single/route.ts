@@ -8,7 +8,7 @@ import { z } from "zod";
 // Request validation
 const createSingleSchema = z.object({
     projectId: z.string().cuid("Invalid project ID"),
-    siteId: z.string().cuid().nullable(),
+    siteId: z.string().cuid().optional().nullable(),
     truck: z.object({
         capacity: z.number().positive(),
         items: z.array(
@@ -49,12 +49,14 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
+        console.log("Create single challan request:", JSON.stringify(body, null, 2));
 
         // Validate input
         const result = createSingleSchema.safeParse(body);
         if (!result.success) {
+            console.error("Validation failed:", result.error.errors);
             return NextResponse.json(
-                { error: result.error.errors[0].message },
+                { error: result.error.errors[0].message, details: result.error.errors },
                 { status: 400 }
             );
         }

@@ -595,6 +595,7 @@ enum ChallanStatus {
   SENT
   RETURNED
   PARTIALLY_RETURNED
+  CANCELLED
 }
 
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import { Truck, TruckItem } from "../types";
+import { Truck } from "../types";
 
 type TruckDropZoneProps = {
     truck: Truck;
@@ -22,41 +22,19 @@ export default function TruckDropZone({
         id: truck.id,
     });
 
-    const capacityPercent = (truck.totalWeight / truck.capacity) * 100;
-    const isOverCapacity = capacityPercent > 100;
-    const isNearCapacity = capacityPercent > 80 && capacityPercent <= 100;
-
-    const getCapacityColor = () => {
-        if (isOverCapacity) return "bg-red-500";
-        if (isNearCapacity) return "bg-orange-500";
-        return "bg-green-500";
-    };
-
-    const getBorderColor = () => {
-        if (isOver) return "border-primary-500 bg-primary-50";
-        if (isOverCapacity) return "border-red-300";
-        if (isNearCapacity) return "border-orange-300";
-        return "border-gray-300";
-    };
-
     return (
         <div
             ref={setNodeRef}
             className={`
         card p-4 border-2 transition-all
-        ${getBorderColor()}
+        ${isOver ? "border-primary-500 bg-primary-50" : "border-gray-300"}
       `}
         >
             {/* Header */}
             <div className="flex items-center justify-between mb-3 pb-3 border-b">
-                <div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                        🚛 Truck {truck.number}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                        Capacity: {truck.capacity.toLocaleString()} kg
-                    </p>
-                </div>
+                <h3 className="text-lg font-bold text-gray-900">
+                    🚛 Truck {truck.number}
+                </h3>
                 <button
                     onClick={() => onRemoveTruck(truck.id)}
                     className="text-red-600 hover:text-red-700 text-sm font-medium"
@@ -64,27 +42,6 @@ export default function TruckDropZone({
                 >
                     ✕ Remove
                 </button>
-            </div>
-
-            {/* Weight Progress */}
-            <div className="mb-4">
-                <div className="flex justify-between text-xs text-gray-600 mb-1">
-                    <span>Weight: {truck.totalWeight.toFixed(0)} kg</span>
-                    <span className={isOverCapacity ? "text-red-600 font-bold" : ""}>
-                        {capacityPercent.toFixed(0)}%
-                    </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                    <div
-                        className={`h-3 transition-all duration-300 ${getCapacityColor()}`}
-                        style={{ width: `${Math.min(capacityPercent, 100)}%` }}
-                    />
-                </div>
-                {isOverCapacity && (
-                    <p className="text-xs text-red-600 mt-1 font-medium">
-                        ⚠️ Over capacity by {(truck.totalWeight - truck.capacity).toFixed(0)} kg
-                    </p>
-                )}
             </div>
 
             {/* Drop Zone */}
@@ -114,13 +71,8 @@ export default function TruckDropZone({
                                 </div>
                                 <div className="text-right mr-3">
                                     <p className="text-sm font-bold text-primary-600">
-                                        {item.quantity}
+                                        Qty: {item.quantity}
                                     </p>
-                                    {item.totalWeight > 0 && (
-                                        <p className="text-xs text-gray-500">
-                                            {item.totalWeight.toFixed(0)} kg
-                                        </p>
-                                    )}
                                 </div>
                                 <button
                                     onClick={() => onRemoveItem(truck.id, item.itemId)}

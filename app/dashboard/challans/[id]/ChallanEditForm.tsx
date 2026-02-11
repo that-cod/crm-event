@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "react-hot-toast";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface ChallanEditFormProps {
     challanId: string;
@@ -26,6 +26,7 @@ interface ChallanEditFormProps {
 
 export default function ChallanEditForm({ challanId, initialData, isDraft }: ChallanEditFormProps) {
     const router = useRouter();
+    const { success, error } = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [formData, setFormData] = useState({
@@ -78,12 +79,12 @@ export default function ChallanEditForm({ challanId, initialData, isDraft }: Cha
                 throw new Error(error.error || "Failed to update challan");
             }
 
-            toast.success("Challan updated successfully");
+            success("Challan updated successfully");
             setIsEditing(false);
             router.refresh();
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : "Failed to update challan";
-            toast.error(errorMessage);
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : "Failed to update challan";
+            error(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -114,10 +115,10 @@ export default function ChallanEditForm({ challanId, initialData, isDraft }: Cha
         return (
             <div className="card">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">📝 Challan Details</h2>
+                    <h2 className="text-lg font-semibold">� Transport & Shipping Details</h2>
                     <button
                         onClick={() => setIsEditing(true)}
-                        className="btn btn-primary btn-sm"
+                        className="btn btn-primary"
                     >
                         ✏️ Edit Details
                     </button>
@@ -197,9 +198,9 @@ export default function ChallanEditForm({ challanId, initialData, isDraft }: Cha
     }
 
     return (
-        <div className="card">
+        <div className="card border-2 border-primary-300">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">✏️ Edit Challan Details</h2>
+                <h2 className="text-lg font-semibold">✏️ Edit Transport & Shipping Details</h2>
                 <div className="flex gap-2">
                     <button
                         onClick={handleCancel}
