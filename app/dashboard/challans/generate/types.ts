@@ -42,3 +42,8 @@ export type ChallanFormData = {
         }[];
     }[];
 };
+
+export type PendingDrop = {
+    item: SiteItem;
+    truckId: string;
+};

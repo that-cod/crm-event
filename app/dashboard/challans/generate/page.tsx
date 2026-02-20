@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { DndContext, DragEndEvent } from "@dnd-kit/core";
 import Link from "next/link";
@@ -8,9 +8,10 @@ import Header from "@/components/Header";
 import { useToast } from "@/lib/hooks/useToast";
 import { useSiteItems } from "./hooks/useSiteItems";
 import { useProjects } from "./hooks/useProjects";
-import { SiteItem, Truck, TruckItem } from "./types";
+import { SiteItem, Truck, TruckItem, PendingDrop } from "./types";
 import DraggableItem from "./components/DraggableItem";
 import TruckDropZone from "./components/TruckDropZone";
+import QuantityDialog from "./components/QuantityDialog";
 
 export default function GenerateChallansPage() {
     const searchParams = useSearchParams();
@@ -25,12 +26,33 @@ export default function GenerateChallansPage() {
     // State
     const [selectedProjectId, setSelectedProjectId] = useState("");
     const [trucks, setTrucks] = useState<Truck[]>([]);
-    const [assignedItemIds, setAssignedItemIds] = useState<Set<string>>(new Set());
+    const [itemRemainingQuantities, setItemRemainingQuantities] = useState<Map<string, number>>(new Map());
     const [creatingChallan, setCreatingChallan] = useState(false);
     const [creatingAll, setCreatingAll] = useState(false);
 
-    // Calculate available items (not yet assigned to any truck)
-    const availableItems = siteItems.filter((item) => !assignedItemIds.has(item.itemId));
+    // Quantity dialog state
+    const [quantityDialogOpen, setQuantityDialogOpen] = useState(false);
+    const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null);
+
+    // Initialize remaining quantities when items load
+    useEffect(() => {
+        if (siteItems.length > 0 && itemRemainingQuantities.size === 0) {
+            const initialQuantities = new Map<string, number>();
+            siteItems.forEach(item => {
+                initialQuantities.set(item.itemId, item.quantity);
+            });
+            setItemRemainingQuantities(initialQuantities);
+        }
+    }, [siteItems, itemRemainingQuantities]);
+
+    // Calculate available items (items with remaining quantity > 0)
+    const availableItems = siteItems
+        .map(item => ({
+            ...item,
+            quantity: itemRemainingQuantities.get(item.itemId) || 0,
+            totalWeight: ((itemRemainingQuantities.get(item.itemId) || 0) * (item.weightPerUnit || 0)),
+        }))
+        .filter(item => item.quantity > 0);
     const unassignedCount = availableItems.length;
 
     // Handle adding new truck (with default capacity)
@@ -45,7 +67,7 @@ export default function GenerateChallansPage() {
         setTrucks([...trucks, newTruck]);
     };
 
-    // Handle drag end
+    // Handle drag end - open quantity dialog
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
@@ -63,14 +85,26 @@ export default function GenerateChallansPage() {
             return;
         }
 
-        // Add item to truck
+        // Open quantity dialog
+        setPendingDrop({ item: itemData, truckId });
+        setQuantityDialogOpen(true);
+    };
+
+    // Handle quantity confirmation from dialog
+    const handleQuantityConfirm = (quantity: number) => {
+        if (!pendingDrop) return;
+
+        const { item: itemData, truckId } = pendingDrop;
+        const remainingQty = itemRemainingQuantities.get(itemData.itemId) || 0;
+
+        // Add item to truck with specified quantity
         const truckItem: TruckItem = {
             itemId: itemData.itemId,
             itemName: itemData.itemName,
             categoryName: itemData.categoryName,
-            quantity: itemData.quantity,
+            quantity: quantity,
             weightPerUnit: itemData.weightPerUnit,
-            totalWeight: itemData.totalWeight,
+            totalWeight: quantity * (itemData.weightPerUnit || 0),
         };
 
         setTrucks(
@@ -79,14 +113,28 @@ export default function GenerateChallansPage() {
                     ? {
                         ...t,
                         items: [...t.items, truckItem],
-                        totalWeight: t.totalWeight + itemData.totalWeight,
+                        totalWeight: t.totalWeight + truckItem.totalWeight,
                     }
                     : t
             )
         );
 
-        // Mark item as assigned
-        setAssignedItemIds(new Set([...assignedItemIds, itemData.itemId]));
+        // Update remaining quantity
+        const newRemainingQuantities = new Map(itemRemainingQuantities);
+        newRemainingQuantities.set(itemData.itemId, remainingQty - quantity);
+        setItemRemainingQuantities(newRemainingQuantities);
+
+        // Close dialog
+        setQuantityDialogOpen(false);
+        setPendingDrop(null);
+
+        success(`Added ${quantity} units to truck`);
+    };
+
+    // Handle quantity dialog cancel
+    const handleQuantityCancel = () => {
+        setQuantityDialogOpen(false);
+        setPendingDrop(null);
     };
 
     // Handle removing item from truck
@@ -109,10 +157,11 @@ export default function GenerateChallansPage() {
             )
         );
 
-        // Mark item as available again
-        const newAssigned = new Set(assignedItemIds);
-        newAssigned.delete(itemId);
-        setAssignedItemIds(newAssigned);
+        // Return quantity to available items
+        const newRemainingQuantities = new Map(itemRemainingQuantities);
+        const currentRemaining = newRemainingQuantities.get(itemId) || 0;
+        newRemainingQuantities.set(itemId, currentRemaining + item.quantity);
+        setItemRemainingQuantities(newRemainingQuantities);
     };
 
     // Handle removing truck
@@ -121,9 +170,12 @@ export default function GenerateChallansPage() {
         if (!truck) return;
 
         // Return all items to available
-        const newAssigned = new Set(assignedItemIds);
-        truck.items.forEach((item) => newAssigned.delete(item.itemId));
-        setAssignedItemIds(newAssigned);
+        const newRemainingQuantities = new Map(itemRemainingQuantities);
+        truck.items.forEach((item) => {
+            const currentRemaining = newRemainingQuantities.get(item.itemId) || 0;
+            newRemainingQuantities.set(item.itemId, currentRemaining + item.quantity);
+        });
+        setItemRemainingQuantities(newRemainingQuantities);
 
         // Remove truck and renumber
         const updatedTrucks = trucks
@@ -405,6 +457,14 @@ export default function GenerateChallansPage() {
                 </div>
             </div>
 
+            {/* Quantity Dialog */}
+            <QuantityDialog
+                isOpen={quantityDialogOpen}
+                itemName={pendingDrop?.item.itemName || ""}
+                availableQuantity={itemRemainingQuantities.get(pendingDrop?.item.itemId || "") || 0}
+                onConfirm={handleQuantityConfirm}
+                onCancel={handleQuantityCancel}
+            />
         </div>
     );
 }

@@ -14,13 +14,19 @@ import { ChallanItemReturnStatus } from "@prisma/client";
  * - REPAIR: Item sent for repair
  * - SCRAP: Item marked as scrap
  * - TRANSFERRED: Item transferred to another site/project
+ * 
+ * Supports multiple status entries per item for quantity splitting
  */
+
+const statusEntrySchema = z.object({
+    returnedQuantity: z.number().int().min(1),
+    returnStatus: z.nativeEnum(ChallanItemReturnStatus),
+    returnNotes: z.string().optional().nullable(),
+});
 
 const returnItemSchema = z.object({
     challanItemId: z.string().cuid(),
-    returnedQuantity: z.number().int().min(0),
-    returnStatus: z.nativeEnum(ChallanItemReturnStatus),
-    returnNotes: z.string().optional().nullable(),
+    statusEntries: z.array(statusEntrySchema).min(1),
 });
 
 const processChallanReturnSchema = z.object({
@@ -74,6 +80,30 @@ export async function POST(
             );
         }
 
+        // Validate quantities before processing
+        for (const returnItem of items) {
+            const challanItem = challan.items.find(
+                (ci) => ci.id === returnItem.challanItemId
+            );
+
+            if (!challanItem) {
+                throw new Error(`Challan item not found: ${returnItem.challanItemId}`);
+            }
+
+            const totalReturned = returnItem.statusEntries.reduce(
+                (sum, entry) => sum + entry.returnedQuantity,
+                0
+            );
+
+            const remainingQuantity = challanItem.quantity - challanItem.returnedQuantity;
+
+            if (totalReturned !== remainingQuantity) {
+                throw new Error(
+                    `Total quantity for ${challanItem.item.name} (${totalReturned}) doesn't match remaining quantity (${remainingQuantity})`
+                );
+            }
+        }
+
         // Process returns in a transaction
         const updatedChallan = await prisma.$transaction(async (tx) => {
             let allReturned = true;
@@ -88,33 +118,19 @@ export async function POST(
                     throw new Error(`Challan item not found: ${returnItem.challanItemId}`);
                 }
 
-                if (returnItem.returnedQuantity > challanItem.quantity) {
-                    throw new Error(
-                        `Return quantity exceeds original quantity for ${challanItem.item.name}`
-                    );
-                }
+                let totalReturnedForItem = 0;
 
-                // Update challan item
-                await tx.challanItem.update({
-                    where: { id: returnItem.challanItemId },
-                    data: {
-                        returnedQuantity: returnItem.returnedQuantity,
-                        returnStatus: returnItem.returnStatus,
-                        returnNotes: returnItem.returnNotes,
-                    },
-                });
+                // Process each status entry
+                for (const entry of returnItem.statusEntries) {
+                    totalReturnedForItem += entry.returnedQuantity;
 
-                // Handle different return statuses
-                if (returnItem.returnedQuantity > 0) {
-                    anyReturned = true;
-
-                    switch (returnItem.returnStatus) {
+                    switch (entry.returnStatus) {
                         case "RETURNED":
                             // Add back to stock
                             await tx.item.update({
                                 where: { id: challanItem.itemId },
                                 data: {
-                                    quantityAvailable: { increment: returnItem.returnedQuantity },
+                                    quantityAvailable: { increment: entry.returnedQuantity },
                                 },
                             });
 
@@ -124,24 +140,26 @@ export async function POST(
                                     itemId: challanItem.itemId,
                                     projectId: challan.projectId,
                                     movementType: "RETURN",
-                                    quantity: returnItem.returnedQuantity,
+                                    quantity: entry.returnedQuantity,
                                     previousQuantity: challanItem.item.quantityAvailable,
-                                    newQuantity: challanItem.item.quantityAvailable + returnItem.returnedQuantity,
-                                    notes: `Returned from challan ${challan.challanNumber}`,
+                                    newQuantity: challanItem.item.quantityAvailable + entry.returnedQuantity,
+                                    notes: entry.returnNotes || `Returned from challan ${challan.challanNumber}`,
                                     performedByUserId: session.user.id,
                                 },
                             });
                             break;
 
                         case "REPAIR":
-                            // Create repair queue entry
-                            await tx.repairQueue.create({
-                                data: {
-                                    itemId: challanItem.itemId,
-                                    status: "PENDING",
-                                    notes: returnItem.returnNotes || `From challan ${challan.challanNumber}`,
-                                },
-                            });
+                            // Create multiple repair queue entries (one per item)
+                            for (let i = 0; i < entry.returnedQuantity; i++) {
+                                await tx.repairQueue.create({
+                                    data: {
+                                        itemId: challanItem.itemId,
+                                        status: "PENDING",
+                                        notes: entry.returnNotes || `From challan ${challan.challanNumber}`,
+                                    },
+                                });
+                            }
 
                             // Update item condition
                             await tx.item.update({
@@ -151,15 +169,17 @@ export async function POST(
                             break;
 
                         case "SCRAP":
-                            // Create scrap record
-                            await tx.scrapRecord.create({
-                                data: {
-                                    itemId: challanItem.itemId,
-                                    reason: returnItem.returnNotes || "Marked as scrap on return",
-                                    disposalMethod: "DESTRUCTION",
-                                    disposalDate: new Date(),
-                                },
-                            });
+                            // Create multiple scrap records (one per item)
+                            for (let i = 0; i < entry.returnedQuantity; i++) {
+                                await tx.scrapRecord.create({
+                                    data: {
+                                        itemId: challanItem.itemId,
+                                        reason: entry.returnNotes || "Marked as scrap on return",
+                                        disposalMethod: "DESTRUCTION",
+                                        disposalDate: new Date(),
+                                    },
+                                });
+                            }
 
                             // Update item condition
                             await tx.item.update({
@@ -170,13 +190,41 @@ export async function POST(
 
                         case "TRANSFERRED":
                             // Just mark as transferred - item stays at new location
-                            // Could create a new challan for transfer tracking
+                            // Could create a new challan for transfer tracking in the future
                             break;
                     }
                 }
 
+                anyReturned = totalReturnedForItem > 0;
+
+                // Update challan item
+                const newReturnedQuantity = challanItem.returnedQuantity + totalReturnedForItem;
+
+                // Determine return status for this item
+                let itemReturnStatus: ChallanItemReturnStatus;
+                if (returnItem.statusEntries.length === 1) {
+                    itemReturnStatus = returnItem.statusEntries[0].returnStatus;
+                } else {
+                    // Multiple statuses - store as "RETURNED" but note in returnNotes
+                    itemReturnStatus = "RETURNED";
+                }
+
+                // Combine notes from all status entries
+                const combinedNotes = returnItem.statusEntries
+                    .map((e) => `${e.returnStatus}: ${e.returnedQuantity}${e.returnNotes ? ` (${e.returnNotes})` : ""}`)
+                    .join("; ");
+
+                await tx.challanItem.update({
+                    where: { id: returnItem.challanItemId },
+                    data: {
+                        returnedQuantity: newReturnedQuantity,
+                        returnStatus: itemReturnStatus,
+                        returnNotes: combinedNotes,
+                    },
+                });
+
                 // Check if all items are fully returned
-                if (returnItem.returnedQuantity < challanItem.quantity) {
+                if (newReturnedQuantity < challanItem.quantity) {
                     allReturned = false;
                 }
             }

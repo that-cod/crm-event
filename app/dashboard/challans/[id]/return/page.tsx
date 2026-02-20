@@ -29,11 +29,18 @@ type Challan = {
     items: ChallanItem[];
 };
 
-type ReturnData = {
-    challanItemId: string;
+type StatusEntry = {
+    id: string;
     returnedQuantity: number;
     returnStatus: "RETURNED" | "REPAIR" | "SCRAP" | "TRANSFERRED";
     returnNotes: string;
+};
+
+type ItemReturnData = {
+    challanItemId: string;
+    originalQuantity: number;
+    remainingQuantity: number;
+    statusEntries: StatusEntry[];
 };
 
 export default function ReturnChallanPage() {
@@ -45,7 +52,7 @@ export default function ReturnChallanPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [challan, setChallan] = useState<Challan | null>(null);
-    const [returnData, setReturnData] = useState<ReturnData[]>([]);
+    const [returnData, setReturnData] = useState<ItemReturnData[]>([]);
 
     useEffect(() => {
         fetchChallan();
@@ -57,14 +64,24 @@ export default function ReturnChallanPage() {
             if (res.ok) {
                 const data = await res.json();
                 setChallan(data);
-                // Initialize return data
+                // Initialize return data with one status entry per item
                 setReturnData(
-                    data.items.map((item: ChallanItem) => ({
-                        challanItemId: item.id,
-                        returnedQuantity: item.quantity - item.returnedQuantity,
-                        returnStatus: "RETURNED" as const,
-                        returnNotes: "",
-                    }))
+                    data.items.map((item: ChallanItem) => {
+                        const remaining = item.quantity - item.returnedQuantity;
+                        return {
+                            challanItemId: item.id,
+                            originalQuantity: item.quantity,
+                            remainingQuantity: remaining,
+                            statusEntries: [
+                                {
+                                    id: `${item.id}-0`,
+                                    returnedQuantity: remaining,
+                                    returnStatus: "RETURNED" as const,
+                                    returnNotes: "",
+                                },
+                            ],
+                        };
+                    })
                 );
             }
         } catch (error) {
@@ -74,19 +91,123 @@ export default function ReturnChallanPage() {
         }
     };
 
-    const updateReturnItem = (index: number, field: string, value: string | number) => {
+    const addStatusEntry = (itemIndex: number) => {
         setReturnData((prev) =>
-            prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+            prev.map((item, i) =>
+                i === itemIndex
+                    ? {
+                        ...item,
+                        statusEntries: [
+                            ...item.statusEntries,
+                            {
+                                id: `${item.challanItemId}-${item.statusEntries.length}`,
+                                returnedQuantity: 0,
+                                returnStatus: "RETURNED" as const,
+                                returnNotes: "",
+                            },
+                        ],
+                    }
+                    : item
+            )
         );
     };
 
+    const removeStatusEntry = (itemIndex: number, entryId: string) => {
+        setReturnData((prev) =>
+            prev.map((item, i) =>
+                i === itemIndex
+                    ? {
+                        ...item,
+                        statusEntries: item.statusEntries.filter((e) => e.id !== entryId),
+                    }
+                    : item
+            )
+        );
+    };
+
+    const updateStatusEntry = (
+        itemIndex: number,
+        entryId: string,
+        field: keyof StatusEntry,
+        value: string | number
+    ) => {
+        setReturnData((prev) =>
+            prev.map((item, i) =>
+                i === itemIndex
+                    ? {
+                        ...item,
+                        statusEntries: item.statusEntries.map((entry) =>
+                            entry.id === entryId ? { ...entry, [field]: value } : entry
+                        ),
+                    }
+                    : item
+            )
+        );
+    };
+
+    const calculateAccountedQuantity = (itemIndex: number): number => {
+        return returnData[itemIndex].statusEntries.reduce(
+            (sum, entry) => sum + (entry.returnedQuantity || 0),
+            0
+        );
+    };
+
+    const calculateRemainingQuantity = (itemIndex: number): number => {
+        const accounted = calculateAccountedQuantity(itemIndex);
+        return returnData[itemIndex].remainingQuantity - accounted;
+    };
+
+    const validateQuantities = (): { valid: boolean; message?: string } => {
+        for (let i = 0; i < returnData.length; i++) {
+            const item = returnData[i];
+            const challanItem = challan?.items[i];
+            const total = calculateAccountedQuantity(i);
+
+            if (total !== item.remainingQuantity) {
+                return {
+                    valid: false,
+                    message: `${challanItem?.item.name}: Total accounted (${total}) doesn't match remaining quantity (${item.remainingQuantity})`,
+                };
+            }
+
+            // Check for zero quantities
+            const hasZeroQuantity = item.statusEntries.some((e) => e.returnedQuantity <= 0);
+            if (hasZeroQuantity) {
+                return {
+                    valid: false,
+                    message: `${challanItem?.item.name}: All status entries must have quantity greater than 0`,
+                };
+            }
+        }
+        return { valid: true };
+    };
+
     const handleSubmit = async () => {
+        // Validate quantities
+        const validation = validateQuantities();
+        if (!validation.valid) {
+            error(validation.message || "Validation failed");
+            return;
+        }
+
         setSubmitting(true);
         try {
+            // Transform data to API format
+            const apiData = {
+                items: returnData.map((item) => ({
+                    challanItemId: item.challanItemId,
+                    statusEntries: item.statusEntries.map((entry) => ({
+                        returnedQuantity: entry.returnedQuantity,
+                        returnStatus: entry.returnStatus,
+                        returnNotes: entry.returnNotes || null,
+                    })),
+                })),
+            };
+
             const res = await fetch(`/api/challans/${challanId}/return`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ items: returnData }),
+                body: JSON.stringify(apiData),
             });
 
             if (res.ok) {
@@ -167,75 +288,170 @@ export default function ReturnChallanPage() {
                         <li>• <strong>REPAIR:</strong> Items need repair - sent to repair queue</li>
                         <li>• <strong>SCRAP:</strong> Items damaged beyond repair - marked as scrap</li>
                         <li>• <strong>TRANSFERRED:</strong> Items transferred to another site/project</li>
+                        <li className="mt-2 text-blue-900 font-medium">⚠️ You must account for ALL items before submitting!</li>
                     </ul>
                 </div>
 
-                {/* Items Table */}
+                {/* Items */}
                 <div className="card">
                     <h2 className="text-lg font-semibold mb-4">Items to Return</h2>
-                    <div className="space-y-4">
-                        {challan.items.map((item, index) => {
-                            const remainingQty = item.quantity - item.returnedQuantity;
-                            const isFullyReturned = remainingQty === 0;
+                    <div className="space-y-6">
+                        {challan.items.map((item, itemIndex) => {
+                            const isFullyReturned = item.quantity === item.returnedQuantity;
+                            const remaining = calculateRemainingQuantity(itemIndex);
+                            const accounted = calculateAccountedQuantity(itemIndex);
+                            const isValid = remaining === 0 && accounted === returnData[itemIndex].remainingQuantity;
 
                             return (
                                 <div
                                     key={item.id}
-                                    className={`border rounded-lg p-4 ${isFullyReturned ? "bg-gray-100 opacity-60" : ""}`}
+                                    className={`border-2 rounded-lg p-4 ${isFullyReturned
+                                            ? "bg-gray-100 opacity-60 border-gray-300"
+                                            : isValid
+                                                ? "border-green-300 bg-green-50"
+                                                : remaining < 0
+                                                    ? "border-red-300 bg-red-50"
+                                                    : "border-orange-300 bg-orange-50"
+                                        }`}
                                 >
-                                    <div className="flex justify-between items-start mb-3">
+                                    {/* Item Header */}
+                                    <div className="flex justify-between items-start mb-3 pb-3 border-b">
                                         <div>
-                                            <h4 className="font-semibold">{item.item.name}</h4>
+                                            <h4 className="font-semibold text-lg">{item.item.name}</h4>
                                             <p className="text-sm text-gray-600">{item.item.category.name}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-sm text-gray-600">Original Qty: <strong>{item.quantity}</strong></p>
+                                            <p className="text-sm text-gray-600">
+                                                Original Qty: <strong>{item.quantity}</strong>
+                                            </p>
                                             {item.returnedQuantity > 0 && (
-                                                <p className="text-sm text-green-600">Already Returned: <strong>{item.returnedQuantity}</strong></p>
+                                                <p className="text-sm text-green-600">
+                                                    Already Returned: <strong>{item.returnedQuantity}</strong>
+                                                </p>
                                             )}
-                                            <p className="text-sm text-orange-600">Remaining: <strong>{remainingQty}</strong></p>
+                                            <p className="text-sm font-semibold text-orange-600">
+                                                Remaining: <strong>{returnData[itemIndex].remainingQuantity}</strong>
+                                            </p>
                                         </div>
                                     </div>
 
                                     {!isFullyReturned && (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div>
-                                                <label className="text-xs text-gray-600">Return Quantity</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max={remainingQty}
-                                                    className="input"
-                                                    value={returnData[index]?.returnedQuantity || 0}
-                                                    onChange={(e) =>
-                                                        updateReturnItem(index, "returnedQuantity", parseInt(e.target.value) || 0)
-                                                    }
-                                                />
+                                        <>
+                                            {/* Status Entries */}
+                                            <div className="space-y-3 mb-3">
+                                                {returnData[itemIndex].statusEntries.map((entry, entryIndex) => (
+                                                    <div
+                                                        key={entry.id}
+                                                        className="bg-white border border-gray-200 rounded-lg p-3"
+                                                    >
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="text-xs font-semibold text-gray-500">
+                                                                Status Entry {entryIndex + 1}
+                                                            </span>
+                                                            {returnData[itemIndex].statusEntries.length > 1 && (
+                                                                <button
+                                                                    onClick={() => removeStatusEntry(itemIndex, entry.id)}
+                                                                    className="text-red-500 hover:text-red-700 text-xs"
+                                                                >
+                                                                    ✕ Remove
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                            <div>
+                                                                <label className="text-xs text-gray-600 block mb-1">
+                                                                    Quantity
+                                                                </label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    className="input"
+                                                                    value={entry.returnedQuantity || ""}
+                                                                    onChange={(e) =>
+                                                                        updateStatusEntry(
+                                                                            itemIndex,
+                                                                            entry.id,
+                                                                            "returnedQuantity",
+                                                                            parseInt(e.target.value) || 0
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-xs text-gray-600 block mb-1">
+                                                                    Status
+                                                                </label>
+                                                                <select
+                                                                    className="input"
+                                                                    value={entry.returnStatus}
+                                                                    onChange={(e) =>
+                                                                        updateStatusEntry(
+                                                                            itemIndex,
+                                                                            entry.id,
+                                                                            "returnStatus",
+                                                                            e.target.value
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <option value="RETURNED">✓ Returned to Stock</option>
+                                                                    <option value="REPAIR">🔧 Needs Repair</option>
+                                                                    <option value="SCRAP">🗑️ Mark as Scrap</option>
+                                                                    <option value="TRANSFERRED">↔️ Transferred</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-xs text-gray-600 block mb-1">
+                                                                    Notes
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="input"
+                                                                    placeholder="Optional notes"
+                                                                    value={entry.returnNotes}
+                                                                    onChange={(e) =>
+                                                                        updateStatusEntry(
+                                                                            itemIndex,
+                                                                            entry.id,
+                                                                            "returnNotes",
+                                                                            e.target.value
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <div>
-                                                <label className="text-xs text-gray-600">Return Status</label>
-                                                <select
-                                                    className="input"
-                                                    value={returnData[index]?.returnStatus || "RETURNED"}
-                                                    onChange={(e) => updateReturnItem(index, "returnStatus", e.target.value)}
-                                                >
-                                                    <option value="RETURNED">✓ Returned to Stock</option>
-                                                    <option value="REPAIR">🔧 Needs Repair</option>
-                                                    <option value="SCRAP">🗑️ Mark as Scrap</option>
-                                                    <option value="TRANSFERRED">↔️ Transferred</option>
-                                                </select>
+
+                                            {/* Add Status Button */}
+                                            <button
+                                                onClick={() => addStatusEntry(itemIndex)}
+                                                className="btn btn-sm btn-secondary w-full"
+                                            >
+                                                + Add Another Status
+                                            </button>
+
+                                            {/* Quantity Summary */}
+                                            <div className="mt-3 p-2 bg-gray-50 rounded text-sm">
+                                                <div className="flex justify-between">
+                                                    <span>Total Accounted:</span>
+                                                    <span className="font-semibold">{accounted}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Remaining Unaccounted:</span>
+                                                    <span
+                                                        className={`font-semibold ${remaining === 0
+                                                                ? "text-green-600"
+                                                                : remaining < 0
+                                                                    ? "text-red-600"
+                                                                    : "text-orange-600"
+                                                            }`}
+                                                    >
+                                                        {remaining} {isValid && "✓"}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <label className="text-xs text-gray-600">Notes</label>
-                                                <input
-                                                    type="text"
-                                                    className="input"
-                                                    placeholder="Optional notes"
-                                                    value={returnData[index]?.returnNotes || ""}
-                                                    onChange={(e) => updateReturnItem(index, "returnNotes", e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
+                                        </>
                                     )}
 
                                     {isFullyReturned && (
