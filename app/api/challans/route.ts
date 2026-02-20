@@ -76,6 +76,7 @@ export async function POST(request: Request) {
 
     const validatedData = validationResult.data;
     projectId = validatedData.projectId;
+    const projectIdStr = validatedData.projectId as string;
     const items = validatedData.items;
     const expectedReturnDate = validatedData.expectedReturnDate;
     const remarks = validatedData.remarks;
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
       const challan = await tx.challan.create({
         data: {
           challanNumber,
-          projectId,
+          projectId: projectIdStr,
           createdByUserId: session.user.id,
           expectedReturnDate: expectedReturnDate
             ? new Date(expectedReturnDate)

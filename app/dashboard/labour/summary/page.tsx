@@ -9,7 +9,7 @@ interface AttendanceRecord {
   date: string;
   shiftsWorked: string | number;
   totalWage: string | number | null;
-  locationType: string;
+  shiftType: string;
 }
 
 
@@ -247,12 +247,12 @@ export default function LabourSummaryPage() {
                                       </span>
                                       <span className="mx-2">•</span>
                                       <span
-                                        className={`px-2 py-0.5 rounded text-xs ${record.locationType === "WAREHOUSE"
+                                        className={`px-2 py-0.5 rounded text-xs ${record.shiftType === "WAREHOUSE"
                                           ? "bg-blue-100 text-blue-700"
                                           : "bg-green-100 text-green-700"
                                           }`}
                                       >
-                                        {record.locationType}
+                                        {record.shiftType}
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-4">

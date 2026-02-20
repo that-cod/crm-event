@@ -1,78 +1,61 @@
-import { prisma } from './prisma';
+import { Prisma } from '@prisma/client';
 
 /**
- * Sets up Prisma middleware for query monitoring and performance tracking
- * Call this once during application initialization
+ * Prisma extension for query monitoring and performance tracking.
+ * Uses the Prisma 5 extension API (replaces deprecated $use middleware).
+ *
+ * Usage: const extendedPrisma = prisma.$extends(queryMonitorExtension)
+ */
+export const queryMonitorExtension = Prisma.defineExtension({
+    name: 'query-monitor',
+    query: {
+        $allModels: {
+            async $allOperations({ model, operation, args, query }) {
+                const before = Date.now();
+
+                try {
+                    const result = await query(args);
+                    const duration = Date.now() - before;
+
+                    // Log slow queries (over 1 second)
+                    if (duration > 1000) {
+                        console.warn(`⚠️  Slow query detected: ${model}.${operation} took ${duration}ms`);
+                    }
+
+                    // Log very slow queries (over 3 seconds) as errors
+                    if (duration > 3000) {
+                        console.error(`🔴 Very slow query: ${model}.${operation} took ${duration}ms`, {
+                            args: JSON.stringify(args).substring(0, 200),
+                        });
+                    }
+
+                    return result;
+                } catch (error) {
+                    const duration = Date.now() - before;
+
+                    // Log database errors with context
+                    console.error(`❌ Database error in ${model}.${operation}:`, {
+                        error: error instanceof Error ? error.message : 'Unknown error',
+                        model,
+                        action: operation,
+                        duration: `${duration}ms`,
+                    });
+
+                    throw error;
+                }
+            },
+        },
+    },
+});
+
+/**
+ * @deprecated Use queryMonitorExtension with prisma.$extends() instead.
+ * This function is kept for backwards compatibility but is a no-op.
+ * The $use() middleware API was removed in Prisma 5.
  */
 export function setupPrismaMiddleware() {
-    prisma.$use(async (params, next) => {
-        const before = Date.now();
-
-        try {
-            const result = await next(params);
-            const after = Date.now();
-            const duration = after - before;
-
-            // Log slow queries (over 1 second)
-            if (duration > 1000) {
-                console.warn(`⚠️  Slow query detected: ${params.model}.${params.action} took ${duration}ms`, {
-                    model: params.model,
-                    action: params.action,
-                    duration: `${duration}ms`,
-                });
-            }
-
-            // Log very slow queries (over 3 seconds) as errors
-            if (duration > 3000) {
-                console.error(`🔴 Very slow query: ${params.model}.${params.action} took ${duration}ms`, {
-                    model: params.model,
-                    action: params.action,
-                    duration: `${duration}ms`,
-                    args: JSON.stringify(params.args).substring(0, 200), // First 200 chars
-                });
-            }
-
-            return result;
-        } catch (error) {
-            const after = Date.now();
-            const duration = after - before;
-
-            // Log database errors with context
-            console.error(`❌ Database error in ${params.model}.${params.action}:`, {
-                error: error instanceof Error ? error.message : 'Unknown error',
-                model: params.model,
-                action: params.action,
-                duration: `${duration}ms`,
-            });
-
-            throw error;
-        }
-    });
-
-    console.log('✅ Prisma middleware initialized');
-}
-
-/**
- * Get connection pool statistics
- * Note: Requires Prisma metrics to be enabled in Prisma Client configuration
- * This is an optional feature and may not be available in all setups
- */
-export async function getPoolStats(): Promise<unknown | null> {
-    try {
-        // Check if $metrics is available on Prisma client
-        // Using type assertion only for the check, not the result
-        const prismaWithMetrics = prisma as { $metrics?: { json: () => Promise<unknown> } };
-
-        if (!prismaWithMetrics.$metrics) {
-            console.warn('Prisma metrics not enabled. Enable in Prisma Client configuration.');
-            return null;
-        }
-
-        const metrics = await prismaWithMetrics.$metrics.json();
-        return metrics;
-    } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.warn('Pool metrics not available:', errorMessage);
-        return null;
-    }
+    console.warn(
+        '⚠️  setupPrismaMiddleware() is deprecated. ' +
+        'Use prisma.$extends(queryMonitorExtension) from lib/prisma.ts instead.'
+    );
 }

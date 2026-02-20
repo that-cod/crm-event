@@ -8,7 +8,7 @@ interface AttendanceRecord {
   id: string;
   labourName: string;
   date: Date;
-  locationType: string;
+  shiftType: string;
   siteId: string | null;
   shiftsWorked: string;
   wagePerShift: string | null;
@@ -53,7 +53,7 @@ export default function LabourAttendancePage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (locationFilter !== "ALL") params.append("locationType", locationFilter);
+      if (locationFilter !== "ALL") params.append("shiftType", locationFilter);
       if (dateRange.startDate) params.append("startDate", dateRange.startDate);
       if (dateRange.endDate) params.append("endDate", dateRange.endDate);
 
@@ -226,16 +226,16 @@ export default function LabourAttendancePage() {
                       </td>
                       <td className="table-cell">
                         <span
-                          className={`px-2 py-1 text-xs rounded-full font-medium ${record.locationType === "WAREHOUSE"
+                          className={`px-2 py-1 text-xs rounded-full font-medium ${record.shiftType === "WAREHOUSE"
                             ? "bg-blue-100 text-blue-800"
                             : "bg-green-100 text-green-800"
                             }`}
                         >
-                          {record.locationType}
+                          {record.shiftType}
                         </span>
                       </td>
                       <td className="table-cell text-sm">
-                        {record.locationType === "SITE"
+                        {record.shiftType === "SITE"
                           ? record.site?.name || "—"
                           : "Main Warehouse"}
                       </td>

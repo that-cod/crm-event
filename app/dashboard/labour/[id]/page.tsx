@@ -15,7 +15,7 @@ interface AttendanceRecord {
   id: string;
   labourName: string;
   date: Date;
-  locationType: string;
+  shiftType: string;
   siteId: string | null;
   shiftsWorked: string;
   wagePerShift: string | null;
@@ -179,17 +179,17 @@ export default function EditAttendancePage({
                 <div>
                   <strong>Type:</strong>{" "}
                   <span
-                    className={`px-2 py-1 text-xs rounded-full font-medium ${attendance.locationType === "WAREHOUSE"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-green-100 text-green-800"
+                    className={`px-2 py-1 text-xs rounded-full font-medium ${attendance.shiftType === "WAREHOUSE"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-green-100 text-green-800"
                       }`}
                   >
-                    {attendance.locationType}
+                    {attendance.shiftType}
                   </span>
                 </div>
                 <div>
                   <strong>Location:</strong>{" "}
-                  {attendance.locationType === "SITE"
+                  {attendance.shiftType === "SITE"
                     ? attendance.site?.name
                     : "Main Warehouse"}
                 </div>

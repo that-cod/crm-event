@@ -1,36 +1,34 @@
 import { PrismaClient } from '@prisma/client'
+import { queryMonitorExtension } from './prisma-middleware'
 
 // ============================================
 // Prisma Client Singleton with Error Handling
 // ============================================
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+  prisma: ReturnType<typeof createPrismaClient> | undefined
 }
 
 /**
  * Creates Prisma client with appropriate logging configuration.
- * Connection pooling is managed by Supabase's pgBouncer (via ?pgbouncer=true parameter).
+ * DATABASE_URL should include ?pgbouncer=true when using Supabase pooler (port 6543).
+ * DIRECT_URL should point to the direct connection (port 5432) for migrations.
  */
-function createPrismaClient(): PrismaClient {
-  // Configure datasource URL to disable prepared statements (fixes "prepared statement does not exist" error)
-  // This is critical when using connection poolers or when connections are reused across requests
-  const datasourceUrl = process.env.DATABASE_URL
-    ? `${process.env.DATABASE_URL}${process.env.DATABASE_URL.includes('?') ? '&' : '?'}pgbouncer=true&connect_timeout=15`
-    : undefined;
-
-  return new PrismaClient({
-    datasourceUrl,
+function createPrismaClient() {
+  const client = new PrismaClient({
     log: process.env.NODE_ENV === 'development'
-      ? ['query', 'error', 'warn']
+      ? ['error', 'warn']
       : ['error'],
     // Configure transaction timeout settings to prevent long-running transactions
     transactionOptions: {
       maxWait: 5000,      // Maximum time (5s) to wait to start a transaction
       timeout: 10000,     // Maximum time (10s) for transaction to complete
-      isolationLevel: 'ReadCommitted', // ReadCommitted isolation level
+      isolationLevel: 'ReadCommitted',
     },
   })
+
+  // Apply query monitoring extension (Prisma 5 replaces deprecated $use())
+  return client.$extends(queryMonitorExtension)
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient()
@@ -84,4 +82,3 @@ if (typeof process !== 'undefined') {
     await disconnectDatabase()
   })
 }
-
