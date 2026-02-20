@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import Header from "@/components/Header";
 import Link from "next/link";
 
@@ -10,11 +11,21 @@ interface ChallanItem {
   quantity: number;
 }
 
-interface Challan {
-  id: string;
-  items: ChallanItem[];
-  [key: string]: unknown;
-}
+type Challan = Prisma.ChallanGetPayload<{
+  include: {
+    project: true;
+    createdBy: true;
+    items: {
+      include: {
+        item: {
+          include: {
+            category: true;
+          };
+        };
+      };
+    };
+  };
+}>;
 
 export default async function ChallansReportPage() {
   const challans = await prisma.challan.findMany({

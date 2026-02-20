@@ -52,9 +52,8 @@ export async function POST(
             // Update challan status to CANCELLED
             await tx.challan.update({
                 where: { id: params.id },
-                data: { 
+                data: {
                     status: "CANCELLED",
-                    updatedAt: new Date(),
                 },
             });
 

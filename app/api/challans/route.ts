@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { getServerSession, Session } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canCreateChallans } from "@/lib/permissions";
@@ -18,7 +18,7 @@ import {
 
 // GET /api/challans
 export async function GET(request: Request) {
-  let session;
+  let session: Session | null = null;
 
   try {
     session = await getServerSession(authOptions);
@@ -59,7 +59,7 @@ export async function GET(request: Request) {
 
 // POST /api/challans - Create challan with automatic stock deduction
 export async function POST(request: Request) {
-  let session;
+  let session: Session | null = null;
   let projectId: string | undefined;
 
   try {
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
         data: {
           challanNumber,
           projectId: projectIdStr,
-          createdByUserId: session.user.id,
+          createdByUserId: session!.user.id,
           expectedReturnDate: expectedReturnDate
             ? new Date(expectedReturnDate)
             : null,
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
             previousQuantity,
             newQuantity,
             notes: `Allocated via Challan ${challanNumber}`,
-            performedByUserId: session.user.id,
+            performedByUserId: session!.user.id,
           },
         });
 

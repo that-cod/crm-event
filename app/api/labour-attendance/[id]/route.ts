@@ -100,7 +100,7 @@ export async function PUT(
           : existingAttendance.wagePerShift || null;
       const finalIncentive = existingAttendance.incentive || 0;
 
-      updateData.totalWage = finalWage ? finalShifts * finalWage + finalIncentive : null;
+      updateData.totalWage = finalWage ? Number(finalShifts) * Number(finalWage) + Number(finalIncentive) : null;
     }
 
     const updatedAttendance = await prisma.labourAttendance.update({
