@@ -84,8 +84,8 @@ model Challan {
   // Transfer challan fields
   sourceSiteId        String?           // For transfer challans - source site
   createdBy           User          @relation(fields: [createdByUserId], references: [id])
-  project             Project       @relation(fields: [projectId], references: [id])
-  sourceSite          Site?         @relation("TransferChallans", fields: [sourceSiteId], references: [id])
+  project             Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceSite          Site?         @relation("TransferChallans", fields: [sourceSiteId], references: [id], onDelete: SetNull)
   items               ChallanItem[]
 
   @@index([challanNumber])
@@ -178,7 +178,7 @@ model LabourAttendance {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   markedBy       User      @relation(fields: [markedByUserId], references: [id])
-  site           Site?     @relation(fields: [siteId], references: [id])
+  site           Site?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
 
   @@index([attendanceDate])
   @@index([labourName])
@@ -474,7 +474,7 @@ model StockMovement {
   createdAt         DateTime       @default(now())
   item              Item           @relation(fields: [itemId], references: [id])
   performedBy       User           @relation(fields: [performedByUserId], references: [id])
-  project           Project?       @relation(fields: [projectId], references: [id])
+  project           Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
   purchaseOrder     PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
 
   @@index([createdAt])
