@@ -33,7 +33,7 @@ export default function AttendanceUploadPage() {
         try {
             const response = await fetch("/api/sites");
             const data = await response.json();
-            setSites(data.sites || []);
+            setSites(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error("Error fetching sites:", error);
         }
