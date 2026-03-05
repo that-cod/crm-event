@@ -18,9 +18,7 @@ export default function ShiftInput({ value, onChange }: ShiftInputProps) {
         <select
             value={value}
             onChange={(e) => onChange(parseFloat(e.target.value))}
-            className={`w-full px-1 py-1 text-center border-0 text-sm font-medium ${getBgColor(
-                value
-            )}`}
+            className={`w-full px-1 py-1 text-center border-0 text-sm font-medium ${getBgColor(value)}`}
         >
             {shiftOptions.map((opt) => (
                 <option key={opt} value={opt}>

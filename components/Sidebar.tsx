@@ -105,7 +105,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
   ];
 
   return (
-    <div className="h-screen w-64 bg-gray-900 text-white flex flex-col fixed left-0 top-0">
+    <div className="h-screen w-64 bg-gray-900 text-white flex flex-col fixed left-0 top-0 z-40">
       <div className="p-6 border-b border-gray-800">
         <h1 className="text-xl font-bold">Inventory CRM</h1>
         <p className="text-xs text-gray-400 mt-1">Event Management</p>

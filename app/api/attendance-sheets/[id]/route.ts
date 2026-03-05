@@ -3,8 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-// Helper function to recalculate sheet totals
-function calculateSheetTotals(sheet: { attendanceJson: unknown; dailyRate: number; incentive: number; totalAdvance: number; openingBalance: number; totalPaid: number }) {
+function calculateSheetTotals(sheet: {
+    attendanceJson: unknown;
+    dailyRate: number;
+    incentive: number;
+    totalAdvance: number;
+    openingBalance: number;
+    totalPaid: number;
+}) {
     const attendanceArray = sheet.attendanceJson as number[];
     const totalShifts = attendanceArray.reduce((sum, val) => sum + val, 0);
     const wages = totalShifts * sheet.dailyRate;
@@ -12,16 +18,11 @@ function calculateSheetTotals(sheet: { attendanceJson: unknown; dailyRate: numbe
     const netPayable = netWages - sheet.totalAdvance + sheet.openingBalance;
     const balanceDue = netPayable - sheet.totalPaid;
 
-    return {
-        totalShifts,
-        wages,
-        netWages,
-        netPayable,
-        balanceDue,
-    };
+    return { totalShifts, wages, netWages, netPayable, balanceDue };
 }
 
-// PATCH /api/attendance-sheets/[id] - Update incentive or other fields
+// PATCH /api/attendance-sheets/[id] - Update sheet fields
+// Accepts: incentive, totalAdvance, totalPaid, dailyRate, status
 export async function PATCH(
     request: NextRequest,
     { params }: { params: { id: string } }
@@ -33,9 +34,8 @@ export async function PATCH(
         }
 
         const body = await request.json();
-        const { incentive, status } = body;
+        const { incentive, totalAdvance, totalPaid, dailyRate, status } = body;
 
-        // Get the sheet
         const sheet = await prisma.attendanceSheet.findUnique({
             where: { id: params.id },
         });
@@ -47,45 +47,43 @@ export async function PATCH(
             );
         }
 
-        // Update incentive if provided
-        let updatedIncentive = sheet.incentive;
-        if (incentive !== undefined) {
-            updatedIncentive = parseFloat(incentive.toString());
-        }
+        // Apply updates
+        const updatedFields = {
+            incentive: incentive !== undefined ? parseFloat(String(incentive)) : sheet.incentive,
+            totalAdvance: totalAdvance !== undefined ? parseFloat(String(totalAdvance)) : sheet.totalAdvance,
+            totalPaid: totalPaid !== undefined ? parseFloat(String(totalPaid)) : sheet.totalPaid,
+            dailyRate: dailyRate !== undefined ? parseFloat(String(dailyRate)) : sheet.dailyRate,
+        };
 
-        // Recalculate totals
+        // Recalculate all derived fields
         const calculated = calculateSheetTotals({
-            ...sheet,
-            incentive: updatedIncentive,
+            attendanceJson: sheet.attendanceJson,
+            dailyRate: updatedFields.dailyRate,
+            incentive: updatedFields.incentive,
+            totalAdvance: updatedFields.totalAdvance,
+            openingBalance: sheet.openingBalance,
+            totalPaid: updatedFields.totalPaid,
         });
 
-        // Update the sheet
         const updatedSheet = await prisma.attendanceSheet.update({
             where: { id: params.id },
             data: {
-                ...(incentive !== undefined && { incentive: updatedIncentive }),
-                ...(status && { status }),
-                ...(status === "finalized" && { finalizedAt: new Date() }),
+                ...updatedFields,
+                totalShifts: calculated.totalShifts,
+                wages: calculated.wages,
                 netWages: calculated.netWages,
                 netPayable: calculated.netPayable,
                 balanceDue: calculated.balanceDue,
+                ...(status && { status }),
+                ...(status === "finalized" && { finalizedAt: new Date() }),
             },
             include: {
                 labour: true,
-                transactions: true,
+                site: true,
             },
         });
 
-        return NextResponse.json({
-            success: true,
-            updatedSheet: {
-                incentive: updatedIncentive,
-                netWages: calculated.netWages,
-                netPayable: calculated.netPayable,
-                balanceDue: calculated.balanceDue,
-            },
-            sheet: updatedSheet,
-        });
+        return NextResponse.json({ success: true, sheet: updatedSheet });
     } catch (error) {
         console.error("Error updating attendance sheet:", error);
         return NextResponse.json(
@@ -111,12 +109,6 @@ export async function GET(
             include: {
                 labour: true,
                 site: true,
-                transactions: {
-                    orderBy: { date: "asc" },
-                },
-                attendanceRecords: {
-                    orderBy: { date: "asc" },
-                },
             },
         });
 
