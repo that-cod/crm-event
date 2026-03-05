@@ -7,7 +7,17 @@
       "Bash(.env)",
       "Bash(tree:*)",
       "Bash(cat:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(curl -s http://localhost:3000 -o /dev/null -w \"%{http_code}\")",
+      "Bash(npm run dev -- --port 3001)",
+      "Bash(curl -s http://localhost:3001 -o /dev/null -w \"%{http_code}\")",
+      "Bash(npm run dev -- --port 3005)",
+      "Bash(curl -s http://localhost:3005 -o /dev/null -w \"%{http_code}\")",
+      "Bash(rm -rf app/dashboard/attendance-management/upload)",
+      "Bash(rm -rf app/dashboard/attendance-management/sheets)",
+      "Bash(rm -rf app/api/attendance-sheets/upload-csv)",
+      "Bash(rm -rf app/api/attendance-sheets/transactions)",
+      "Bash(npx next build)"
     ],
     "deny": [],
     "ask": []

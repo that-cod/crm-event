@@ -76,7 +76,10 @@ export default function LabourAttendancePage() {
         action={
           <div className="flex gap-2">
             <Link href="/dashboard/labour/summary" className="btn btn-secondary">
-              📊 View Summary
+              View Summary
+            </Link>
+            <Link href="/dashboard/labour/bulk-upload" className="btn btn-secondary">
+              Bulk Upload CSV
             </Link>
             <Link href="/dashboard/labour/new" className="btn btn-primary">
               + Mark Attendance

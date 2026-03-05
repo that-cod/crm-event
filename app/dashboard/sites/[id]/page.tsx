@@ -51,20 +51,12 @@ export default async function SiteDetailPage({
         action={
           <div className="flex gap-2 flex-wrap">
             {site.siteInventory.length > 0 && (
-              <>
-                <Link
-                  href={`/dashboard/challans/generate?siteId=${site.id}`}
-                  className="btn bg-green-600 text-white hover:bg-green-700"
-                >
-                  🚛 Auto-Generate Challans
-                </Link>
-                <Link
-                  href={`/dashboard/challans/new?siteId=${site.id}`}
-                  className="btn btn-primary"
-                >
-                  📄 Create Challan
-                </Link>
-              </>
+              <Link
+                href={`/dashboard/challans/new?siteId=${site.id}`}
+                className="btn btn-primary"
+              >
+                📄 Create Challan
+              </Link>
             )}
             <Link
               href={`/dashboard/sites/${site.id}/inventory`}
