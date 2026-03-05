@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Header from "@/components/Header";
 import Link from "next/link";
 import { canCreateProjects } from "@/lib/permissions";
+import DeleteBundleTemplateButton from "./DeleteBundleTemplateButton";
 
 export default async function BundleTemplatesPage() {
     const session = await getServerSession(authOptions);
@@ -85,12 +86,17 @@ export default async function BundleTemplatesPage() {
                                                 {template.description || "—"}
                                             </td>
                                             <td className="table-cell">
-                                                <Link
-                                                    href={`/dashboard/bundle-templates/${template.id}`}
-                                                    className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                                                >
-                                                    View
-                                                </Link>
+                                                <div className="flex gap-2 items-center">
+                                                    <Link
+                                                        href={`/dashboard/bundle-templates/${template.id}`}
+                                                        className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                                                    >
+                                                        View
+                                                    </Link>
+                                                    {canManage && (
+                                                        <DeleteBundleTemplateButton templateId={template.id} templateName={template.name} />
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))

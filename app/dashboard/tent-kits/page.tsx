@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/lib/hooks/useToast";
+import DeleteTentKitButton from "./DeleteTentKitButton";
 
 type TentKit = {
     id: string;
@@ -185,6 +186,7 @@ export default function TentKitsPage() {
                                     >
                                         Details
                                     </button>
+                                    <DeleteTentKitButton kitId={kit.id} kitName={kit.name} />
                                 </div>
                             </div>
                         ))}

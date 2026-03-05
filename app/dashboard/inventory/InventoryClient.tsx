@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import DeleteItemButton from './DeleteItemButton';
 
 type Item = {
     id: string;
@@ -196,8 +197,8 @@ export default function InventoryClient({
                         <button
                             onClick={() => setShowFilterPanel(!showFilterPanel)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeFilterCount > 0 || showFilterPanel
-                                    ? 'bg-primary-600 text-white hover:bg-primary-700'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                ? 'bg-primary-600 text-white hover:bg-primary-700'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -376,12 +377,17 @@ export default function InventoryClient({
                                         </td>
                                         <td className="table-cell">{item.vendor || '—'}</td>
                                         <td className="table-cell">
-                                            <Link
-                                                href={`/dashboard/inventory/${item.id}`}
-                                                className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                                            >
-                                                View
-                                            </Link>
+                                            <div className="flex gap-2 items-center">
+                                                <Link
+                                                    href={`/dashboard/inventory/${item.id}`}
+                                                    className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                                                >
+                                                    View
+                                                </Link>
+                                                {canManage && (
+                                                    <DeleteItemButton itemId={item.id} itemName={item.name} />
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

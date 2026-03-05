@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Header from "@/components/Header";
 import Link from "next/link";
 import { canManageInventory } from "@/lib/permissions";
+import DeleteSiteButton from "./DeleteSiteButton";
 
 export default async function SitesPage() {
   const session = await getServerSession(authOptions);
@@ -97,11 +98,10 @@ export default async function SitesPage() {
                       <td className="table-cell">{site.location}</td>
                       <td className="table-cell">
                         <span
-                          className={`px-2 py-1 text-xs rounded-full ${
-                            site.isActive
+                          className={`px-2 py-1 text-xs rounded-full ${site.isActive
                               ? "bg-green-100 text-green-800"
                               : "bg-gray-100 text-gray-800"
-                          }`}
+                            }`}
                         >
                           {site.isActive ? "Active" : "Inactive"}
                         </span>
@@ -112,7 +112,7 @@ export default async function SitesPage() {
                         {site._count.labourAttendances}
                       </td>
                       <td className="table-cell">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
                           <Link
                             href={`/dashboard/sites/${site.id}`}
                             className="text-primary-600 hover:text-primary-700 text-sm font-medium"
@@ -125,6 +125,9 @@ export default async function SitesPage() {
                           >
                             Inventory
                           </Link>
+                          {canManage && (
+                            <DeleteSiteButton siteId={site.id} siteName={site.name} />
+                          )}
                         </div>
                       </td>
                     </tr>

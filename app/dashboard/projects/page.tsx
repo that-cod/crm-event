@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Header from "@/components/Header";
 import Link from "next/link";
 import { canCreateProjects } from "@/lib/permissions";
+import DeleteProjectButton from "./DeleteProjectButton";
 
 export default async function ProjectsPage() {
   const session = await getServerSession(authOptions);
@@ -81,13 +82,12 @@ export default async function ProjectsPage() {
                       </td>
                       <td className="table-cell">
                         <span
-                          className={`px-2 py-1 text-xs rounded-full ${
-                            project.status === "ACTIVE"
+                          className={`px-2 py-1 text-xs rounded-full ${project.status === "ACTIVE"
                               ? "bg-green-100 text-green-800"
                               : project.status === "COMPLETED"
-                              ? "bg-gray-100 text-gray-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
+                                ? "bg-gray-100 text-gray-800"
+                                : "bg-blue-100 text-blue-800"
+                            }`}
                         >
                           {project.status}
                         </span>
@@ -97,12 +97,17 @@ export default async function ProjectsPage() {
                       </td>
                       <td className="table-cell">{project._count.challans}</td>
                       <td className="table-cell">
-                        <Link
-                          href={`/dashboard/projects/${project.id}`}
-                          className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                        >
-                          View
-                        </Link>
+                        <div className="flex gap-2 items-center">
+                          <Link
+                            href={`/dashboard/projects/${project.id}`}
+                            className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                          >
+                            View
+                          </Link>
+                          {canManage && (
+                            <DeleteProjectButton projectId={project.id} projectName={project.name} />
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
