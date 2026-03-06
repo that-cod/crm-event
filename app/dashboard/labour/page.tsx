@@ -1,280 +1,274 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Header from "@/components/Header";
 import Link from "next/link";
+import { useToast } from "@/lib/hooks/useToast";
 
-interface AttendanceRecord {
+interface Site {
   id: string;
-  labourName: string;
-  date: Date;
-  shiftType: string;
-  siteId: string | null;
-  shiftsWorked: string;
-  wagePerShift: string | null;
-  totalWage: string | null;
-  notes: string | null;
-  site: {
-    name: string;
-  } | null;
+  name: string;
 }
 
-interface AttendanceSummary {
-  total: number;
-  warehouse: number;
-  site: number;
-  totalShifts: number;
-  totalWages: number;
-  uniqueLabourers: number;
+interface Labour {
+  id: string;
+  name: string;
+  defaultDailyRate: number;
+  siteId: string;
 }
 
-export default function LabourAttendancePage() {
-  const [loading, setLoading] = useState(true);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [summary, setSummary] = useState<AttendanceSummary>({
-    total: 0,
-    warehouse: 0,
-    site: 0,
-    totalShifts: 0,
-    totalWages: 0,
-    uniqueLabourers: 0,
-  });
-  const [locationFilter, setLocationFilter] = useState("ALL");
-  const [dateRange, setDateRange] = useState({
-    startDate: "",
-    endDate: "",
-  });
+export default function LabourPage() {
+  const { success, error: showError } = useToast();
+
+  const [sites, setSites] = useState<Site[]>([]);
+  const [selectedSite, setSelectedSite] = useState("");
+  const [labours, setLabours] = useState<Labour[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Add labour form state
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newRate, setNewRate] = useState("500");
+  const [adding, setAdding] = useState(false);
+
+  // Delete state
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAttendance();
-  }, [locationFilter, dateRange]);
+    fetch("/api/sites")
+      .then((r) => r.json())
+      .then((data) => setSites(Array.isArray(data) ? data : []))
+      .catch(console.error);
+  }, []);
 
-  const fetchAttendance = async () => {
+  const fetchLabours = useCallback(async (siteId: string) => {
+    if (!siteId) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (locationFilter !== "ALL") params.append("shiftType", locationFilter);
-      if (dateRange.startDate) params.append("startDate", dateRange.startDate);
-      if (dateRange.endDate) params.append("endDate", dateRange.endDate);
-
-      const response = await fetch(`/api/labour-attendance?${params.toString()}`);
-      const data = await response.json();
-      setAttendanceRecords(data.attendanceRecords);
-      setSummary(data.summary);
-    } catch (error) {
-      console.error("Error fetching attendance:", error);
+      const res = await fetch(`/api/labours?siteId=${siteId}`);
+      const data = await res.json();
+      setLabours(data.labours || data || []);
+    } catch {
+      showError("Failed to fetch labours");
     } finally {
       setLoading(false);
+    }
+  }, [showError]);
+
+  const handleSiteChange = (siteId: string) => {
+    setSelectedSite(siteId);
+    setLabours([]);
+    if (siteId) fetchLabours(siteId);
+  };
+
+  const handleAddLabour = async () => {
+    if (!newName.trim() || !selectedSite) {
+      showError("Name and site are required");
+      return;
+    }
+    setAdding(true);
+    try {
+      const res = await fetch("/api/labours", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName.trim(),
+          siteId: selectedSite,
+          defaultDailyRate: parseFloat(newRate) || 500,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        success(`Labour "${newName.trim()}" added`);
+        setNewName("");
+        setNewRate("500");
+        setShowAddForm(false);
+        fetchLabours(selectedSite);
+      } else {
+        showError(data.error || "Failed to add labour");
+      }
+    } catch {
+      showError("Failed to add labour");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleDelete = async (labour: Labour) => {
+    if (!confirm(`Delete "${labour.name}"? This will remove all their attendance records.`)) return;
+    setDeletingId(labour.id);
+    try {
+      const res = await fetch(`/api/labours/${labour.id}`, { method: "DELETE" });
+      if (res.ok) {
+        success(`"${labour.name}" deleted`);
+        setLabours((prev) => prev.filter((l) => l.id !== labour.id));
+      } else {
+        const data = await res.json();
+        showError(data.error || "Failed to delete");
+      }
+    } catch {
+      showError("Failed to delete");
+    } finally {
+      setDeletingId(null);
     }
   };
 
   return (
     <div>
       <Header
-        title="Labour Attendance"
-        subtitle="Track warehouse and site labour attendance"
+        title="Labour Management"
+        subtitle="Manage labours per site — add individually or via bulk CSV upload"
         action={
-          <div className="flex gap-2">
-            <Link href="/dashboard/labour/summary" className="btn btn-secondary">
-              View Summary
-            </Link>
-            <Link href="/dashboard/labour/bulk-upload" className="btn btn-secondary">
-              Bulk Upload CSV
-            </Link>
-            <Link href="/dashboard/labour/new" className="btn btn-primary">
-              + Mark Attendance
-            </Link>
-          </div>
+          <Link href="/dashboard/labour/bulk-upload" className="btn btn-secondary">
+            Bulk Upload CSV
+          </Link>
         }
       />
 
-      <div className="p-8">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-          <div className="card">
-            <p className="text-sm text-gray-600">Total Records</p>
-            <p className="text-2xl font-bold">{summary.total}</p>
-          </div>
-          <div className="card border-blue-200 bg-blue-50">
-            <p className="text-sm text-blue-600">Warehouse</p>
-            <p className="text-2xl font-bold text-blue-700">
-              {summary.warehouse}
-            </p>
-          </div>
-          <div className="card border-green-200 bg-green-50">
-            <p className="text-sm text-green-600">Site</p>
-            <p className="text-2xl font-bold text-green-700">{summary.site}</p>
-          </div>
-          <div className="card border-orange-200 bg-orange-50">
-            <p className="text-sm text-orange-600">Total Shifts</p>
-            <p className="text-2xl font-bold text-orange-700">
-              {summary.totalShifts.toFixed(1)}
-            </p>
-          </div>
-          <div className="card border-purple-200 bg-purple-50">
-            <p className="text-sm text-purple-600">Total Wages</p>
-            <p className="text-xl font-bold text-purple-700">
-              ₹{summary.totalWages.toLocaleString()}
-            </p>
-          </div>
-          <div className="card">
-            <p className="text-sm text-gray-600">Unique Labourers</p>
-            <p className="text-2xl font-bold">{summary.uniqueLabourers}</p>
-          </div>
-        </div>
-
-        {/* Filters */}
+      <div className="p-8 max-w-4xl mx-auto">
+        {/* Site selector */}
         <div className="card mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Location Filter
-              </label>
-              <div className="flex gap-2">
-                {["ALL", "WAREHOUSE", "SITE"].map((type) => (
+          <label className="text-sm font-medium text-gray-700 mb-2 block">
+            Select Site
+          </label>
+          <select
+            className="input"
+            value={selectedSite}
+            onChange={(e) => handleSiteChange(e.target.value)}
+          >
+            <option value="">Select a site to view labours</option>
+            {sites.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedSite && (
+          <>
+            {/* Add labour form */}
+            {showAddForm ? (
+              <div className="card mb-6 border-primary-200 bg-primary-50">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Add New Labour</h3>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. Ramesh Kumar"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddLabour()}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="w-32">
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">
+                      Daily Rate (₹)
+                    </label>
+                    <input
+                      type="number"
+                      className="input"
+                      value={newRate}
+                      onChange={(e) => setNewRate(e.target.value)}
+                    />
+                  </div>
                   <button
-                    key={type}
-                    onClick={() => setLocationFilter(type)}
-                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${locationFilter === type
-                      ? "bg-primary-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
+                    onClick={handleAddLabour}
+                    disabled={adding}
+                    className="btn btn-primary"
                   >
-                    {type}
+                    {adding ? "Adding..." : "Add"}
                   </button>
-                ))}
+                  <button
+                    onClick={() => { setShowAddForm(false); setNewName(""); setNewRate("500"); }}
+                    className="btn btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="mb-4 flex justify-between items-center">
+                <p className="text-sm text-gray-600">
+                  {loading ? "Loading..." : `${labours.length} labour${labours.length !== 1 ? "s" : ""} at this site`}
+                </p>
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="btn btn-primary"
+                >
+                  + Add Labour
+                </button>
+              </div>
+            )}
 
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Start Date
-              </label>
-              <input
-                type="date"
-                className="input"
-                value={dateRange.startDate || ""}
-                onChange={(e) =>
-                  setDateRange({ ...dateRange, startDate: e.target.value })
-                }
-                max={new Date().toISOString().split("T")[0]}
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                End Date
-              </label>
-              <input
-                type="date"
-                className="input"
-                value={dateRange.endDate || ""}
-                onChange={(e) =>
-                  setDateRange({ ...dateRange, endDate: e.target.value })
-                }
-                max={new Date().toISOString().split("T")[0]}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Attendance Table */}
-        <div className="card">
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="text-4xl mb-4">⏳</div>
-              <p className="text-gray-600">Loading attendance records...</p>
-            </div>
-          ) : attendanceRecords.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">👷</div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No Attendance Records
-              </h3>
-              <p className="text-gray-600 mb-4">
-                {locationFilter !== "ALL" ||
-                  dateRange.startDate ||
-                  dateRange.endDate
-                  ? "No attendance records match your filters."
-                  : "No attendance has been marked yet."}
-              </p>
-              <Link href="/dashboard/labour/new" className="btn btn-primary">
-                Mark Attendance
-              </Link>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="table">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="table-header">Labour Name</th>
-                    <th className="table-header">Date</th>
-                    <th className="table-header">Location Type</th>
-                    <th className="table-header">Site/Warehouse</th>
-                    <th className="table-header">Shifts Worked</th>
-                    <th className="table-header">Wage/Shift</th>
-                    <th className="table-header">Total Wage</th>
-                    <th className="table-header">Notes</th>
-                    <th className="table-header">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {attendanceRecords.map((record) => (
-                    <tr key={record.id}>
-                      <td className="table-cell font-medium">
-                        {record.labourName}
-                      </td>
-                      <td className="table-cell">
-                        {new Date(record.date).toLocaleDateString()}
-                      </td>
-                      <td className="table-cell">
-                        <span
-                          className={`px-2 py-1 text-xs rounded-full font-medium ${record.shiftType === "WAREHOUSE"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-green-100 text-green-800"
-                            }`}
-                        >
-                          {record.shiftType}
-                        </span>
-                      </td>
-                      <td className="table-cell text-sm">
-                        {record.shiftType === "SITE"
-                          ? record.site?.name || "—"
-                          : "Main Warehouse"}
-                      </td>
-                      <td className="table-cell">
-                        <span className="font-semibold text-lg text-orange-600">
-                          {parseFloat(record.shiftsWorked).toFixed(1)}
-                        </span>
-                      </td>
-                      <td className="table-cell text-sm">
-                        {record.wagePerShift
-                          ? `₹${parseFloat(record.wagePerShift).toFixed(2)}`
-                          : "—"}
-                      </td>
-                      <td className="table-cell text-sm font-medium">
-                        {record.totalWage
-                          ? `₹${parseFloat(record.totalWage).toFixed(2)}`
-                          : "—"}
-                      </td>
-                      <td className="table-cell text-xs text-gray-600 max-w-xs truncate">
-                        {record.notes || "—"}
-                      </td>
-                      <td className="table-cell">
-                        <Link
-                          href={`/dashboard/labour/${record.id}`}
-                          className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                        >
-                          Edit
-                        </Link>
-                      </td>
+            {/* Labour list */}
+            <div className="card">
+              {loading ? (
+                <div className="text-center py-10 text-gray-500">Loading labours...</div>
+              ) : labours.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className="text-gray-600 mb-4">No labours added for this site yet.</p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      onClick={() => setShowAddForm(true)}
+                      className="btn btn-primary"
+                    >
+                      + Add Labour
+                    </button>
+                    <Link href="/dashboard/labour/bulk-upload" className="btn btn-secondary">
+                      Bulk Upload CSV
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <table className="table">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="table-header">S.N.</th>
+                      <th className="table-header">Name</th>
+                      <th className="table-header">Daily Rate (₹)</th>
+                      <th className="table-header">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {labours.map((labour, i) => (
+                      <tr key={labour.id}>
+                        <td className="table-cell text-gray-500">{i + 1}</td>
+                        <td className="table-cell font-medium">{labour.name}</td>
+                        <td className="table-cell">₹{labour.defaultDailyRate}</td>
+                        <td className="table-cell">
+                          <button
+                            onClick={() => handleDelete(labour)}
+                            disabled={deletingId === labour.id}
+                            className="text-red-600 hover:text-red-700 text-sm font-medium disabled:opacity-50"
+                          >
+                            {deletingId === labour.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
-        </div>
+
+            {labours.length > 0 && (
+              <div className="mt-4 text-center">
+                <Link
+                  href="/dashboard/attendance-management"
+                  className="btn btn-primary"
+                >
+                  Go to Attendance Management →
+                </Link>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

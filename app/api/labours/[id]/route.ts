@@ -93,34 +93,9 @@ export async function DELETE(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // Check if labour has attendance records
-        const labour = await prisma.labour.findUnique({
-            where: { id: params.id },
-            include: {
-                _count: {
-                    select: {
-                        attendanceRecords: true,
-                        attendanceSheets: true,
-                    },
-                },
-            },
-        });
-
-        if (!labour) {
+        const exists = await prisma.labour.findUnique({ where: { id: params.id } });
+        if (!exists) {
             return NextResponse.json({ error: "Labour not found" }, { status: 404 });
-        }
-
-        if (
-            labour._count.attendanceRecords > 0 ||
-            labour._count.attendanceSheets > 0
-        ) {
-            return NextResponse.json(
-                {
-                    error:
-                        "Cannot delete labour with existing attendance records. Please archive instead.",
-                },
-                { status: 400 }
-            );
         }
 
         await prisma.labour.delete({
