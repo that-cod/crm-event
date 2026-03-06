@@ -67,6 +67,12 @@ export default function Sidebar({ userRole }: SidebarProps) {
       show: canManage,
     },
     {
+      label: "Tent Kits",
+      href: "/dashboard/tent-kits",
+      icon: "⛺",
+      show: canManage,
+    },
+    {
       label: "Labour",
       href: "/dashboard/labour",
       icon: "👷",
