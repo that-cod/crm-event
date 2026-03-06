@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useToast } from "@/lib/hooks/useToast";
 
 interface DeleteSiteButtonProps {
@@ -14,6 +15,9 @@ export default function DeleteSiteButton({ siteId, siteName }: DeleteSiteButtonP
     const { success, error } = useToast();
     const [showConfirm, setShowConfirm] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => { setMounted(true); }, []);
 
     const handleDelete = async () => {
         setDeleting(true);
@@ -47,13 +51,13 @@ export default function DeleteSiteButton({ siteId, siteName }: DeleteSiteButtonP
                 Delete
             </button>
 
-            {showConfirm && (
+            {showConfirm && mounted && createPortal(
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
                         <h3 className="text-xl font-bold text-red-600 mb-4">
                             ⚠️ Confirm Deletion
                         </h3>
-                        <p className="text-gray-700 mb-6">
+                        <p className="text-gray-700 mb-6 break-words">
                             Are you sure you want to delete <strong>&quot;{siteName}&quot;</strong>? This action cannot be undone.
                             <br />
                             <br />
@@ -76,7 +80,8 @@ export default function DeleteSiteButton({ siteId, siteName }: DeleteSiteButtonP
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </>
     );

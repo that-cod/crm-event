@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useToast } from "@/lib/hooks/useToast";
 
 type QuickActionsProps = {
@@ -14,6 +15,9 @@ export default function QuickActions({ itemId }: QuickActionsProps) {
     const { success, error } = useToast();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => { setMounted(true); }, []);
 
     const handleDelete = async () => {
         setDeleting(true);
@@ -72,13 +76,13 @@ export default function QuickActions({ itemId }: QuickActionsProps) {
             </div>
 
             {/* Delete Confirmation Modal */}
-            {showDeleteConfirm && (
+            {showDeleteConfirm && mounted && createPortal(
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
                         <h3 className="text-xl font-bold text-red-600 mb-4">
                             ⚠️ Confirm Deletion
                         </h3>
-                        <p className="text-gray-700 mb-6">
+                        <p className="text-gray-700 mb-6 break-words">
                             Are you sure you want to delete this item? This action cannot be undone.
                             <br />
                             <br />
@@ -101,7 +105,8 @@ export default function QuickActions({ itemId }: QuickActionsProps) {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </>
     );
