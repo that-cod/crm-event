@@ -50,19 +50,31 @@ export default async function SiteDetailPage({
         title={site.name}
         subtitle={site.location}
         action={
+<<<<<<< Updated upstream
           <div className="flex gap-2 flex-wrap">
             <SiteDeployButton siteId={site.id} siteName={site.name} />
             {site.siteInventory.length > 0 && (
               <Link
                 href={`/dashboard/challans/new?siteId=${site.id}`}
                 className="btn btn-secondary"
+=======
+          <div className="flex gap-2">
+            {site.siteInventory.length > 0 && (
+              <Link
+                href={`/dashboard/challans/new?siteId=${site.id}`}
+                className="btn btn-primary"
+>>>>>>> Stashed changes
               >
                 📄 Create Challan
               </Link>
             )}
             <Link
               href={`/dashboard/sites/${site.id}/inventory`}
+<<<<<<< Updated upstream
               className="btn btn-outline"
+=======
+              className="btn btn-secondary"
+>>>>>>> Stashed changes
             >
               View Inventory
             </Link>
