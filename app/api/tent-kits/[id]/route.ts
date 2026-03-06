@@ -144,9 +144,19 @@ export async function DELETE(
             return NextResponse.json({ error: "Tent kit not found" }, { status: 404 });
         }
 
+        // Get the baseItemId before deletion
+        const baseItemId = kit.baseItemId;
+
         await prisma.bundleTemplate.delete({
             where: { id: params.id },
         });
+
+        // Also delete the virtual base item (created alongside the kit)
+        try {
+            await prisma.item.delete({ where: { id: baseItemId } });
+        } catch {
+            // May fail if item is referenced elsewhere – that's acceptable
+        }
 
         return NextResponse.json({ success: true, message: "Tent kit deleted successfully" });
     } catch (error) {

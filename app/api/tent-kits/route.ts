@@ -51,7 +51,7 @@ export async function GET() {
                     return Math.floor(availableQty / qtyPerKit);
                 });
 
-                const availableKits = Math.min(...componentAvailability, 0);
+                const availableKits = componentAvailability.length > 0 ? Math.min(...componentAvailability) : 0;
 
                 // Check if balanced
                 const baseQty = componentAvailability[0] || 0;
@@ -87,3 +87,71 @@ export async function GET() {
         );
     }
 }
+
+// POST /api/tent-kits - Create a new tent kit (BundleTemplate)
+export async function POST(request: Request) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session || !canManageInventory(session.user.role)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const body = await request.json();
+        const { kitName, description, categoryId, subcategoryId, componentItems } = body;
+
+        if (!kitName || !categoryId) {
+            return NextResponse.json({ error: "kitName and categoryId are required" }, { status: 400 });
+        }
+        if (!componentItems || !Array.isArray(componentItems) || componentItems.length === 0) {
+            return NextResponse.json({ error: "At least one component item is required" }, { status: 400 });
+        }
+
+        // Check if a BundleTemplate with this name already exists
+        const existing = await prisma.bundleTemplate.findUnique({ where: { name: kitName } });
+        if (existing) {
+            return NextResponse.json({ error: `A tent kit named "${kitName}" already exists` }, { status: 409 });
+        }
+
+        // Create the virtual base item for this tent kit
+        const baseItem = await prisma.item.create({
+            data: {
+                categoryId,
+                subcategoryId: subcategoryId || null,
+                name: kitName,
+                description: description || `Complete ${kitName} kit`,
+                quantityAvailable: 0,
+                condition: "GOOD",
+                isKitComponent: false,
+            },
+        });
+
+        // Create the BundleTemplate + components
+        const bundleTemplate = await prisma.bundleTemplate.create({
+            data: {
+                name: kitName,
+                description: description || `${kitName} - Complete Kit`,
+                baseItemId: baseItem.id,
+                items: {
+                    createMany: {
+                        data: componentItems.map((c: { itemId: string; quantityPerKit: number }) => ({
+                            itemId: c.itemId,
+                            quantityPerBaseUnit: c.quantityPerKit,
+                        })),
+                    },
+                },
+            },
+            include: {
+                baseItem: true,
+                items: {
+                    include: { item: true },
+                },
+            },
+        });
+
+        return NextResponse.json({ success: true, kit: bundleTemplate }, { status: 201 });
+    } catch (error) {
+        console.error("Error creating tent kit:", error);
+        return NextResponse.json({ error: "Failed to create tent kit" }, { status: 500 });
+    }
+}
+
