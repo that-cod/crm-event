@@ -9,7 +9,7 @@ import { handleApiError, unauthorizedError } from "@/lib/api-error-handler";
 
 // Default pagination settings
 const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 500;
 
 // GET /api/inventory/items - List all items with filters and pagination
 export async function GET(request: Request) {
@@ -28,17 +28,18 @@ export async function GET(request: Request) {
     const condition = searchParams.get("condition");
     const search = searchParams.get("search");
     const showKitComponents = searchParams.get("showKitComponents") === "true";
+    const getAll = searchParams.get("all") === "true"; // bypass pagination for dropdowns
 
     // Store for error context
     filterContext = { categoryId, subcategoryId, condition, search };
 
-    // Pagination parameters
+    // Pagination parameters (skip if all=true)
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const limit = Math.min(
       MAX_PAGE_SIZE,
       Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_PAGE_SIZE)))
     );
-    const skip = (page - 1) * limit;
+    const skip = getAll ? undefined : (page - 1) * limit;
 
     const where: Prisma.ItemWhereInput = {};
 
@@ -91,8 +92,8 @@ export async function GET(request: Request) {
         orderBy: {
           name: "asc",
         },
-        skip,
-        take: limit,
+        skip: skip,
+        take: getAll ? undefined : limit,
       }),
       prisma.item.count({ where }),
     ]);

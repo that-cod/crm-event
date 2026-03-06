@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import CategoryItemDropdown from "@/components/CategoryItemDropdown";
+import TentKitSelector from "@/components/TentKitSelector";
 import { useToast } from "@/lib/hooks/useToast";
 
 type Item = {
@@ -24,6 +25,7 @@ type DeployedItem = {
   shiftType: "WAREHOUSE" | "SITE";
   expectedReturnDate?: string;
   notes?: string;
+  fromKitName?: string; // which tent kit this came from
 };
 
 export default function NewSitePage() {
@@ -41,9 +43,9 @@ export default function NewSitePage() {
     isActive: true,
   });
 
-  // Fetch items for dropdown (includes regular items and tent kits)
+  // Fetch items for dropdown (all inventory items including kit components)
   useEffect(() => {
-    fetch("/api/deployable-items")
+    fetch("/api/inventory/items?all=true&showKitComponents=true")
       .then((res) => res.json())
       .then((data) => {
         if (data.data) {
@@ -52,6 +54,26 @@ export default function NewSitePage() {
       })
       .catch((err) => console.error("Error fetching items:", err));
   }, []);
+
+  // Adds all components of a tent kit to deployedItems (merges quantities for duplicates)
+  const handleAddKitComponents = (kitItems: typeof deployedItems) => {
+    setDeployedItems((prev) => {
+      const updated = [...prev];
+      for (const kitItem of kitItems) {
+        const existing = updated.findIndex((di) => di.itemId === kitItem.itemId);
+        if (existing >= 0) {
+          // Update quantity if already in list
+          updated[existing] = {
+            ...updated[existing],
+            quantityDeployed: kitItem.quantityDeployed,
+          };
+        } else {
+          updated.push(kitItem);
+        }
+      }
+      return updated;
+    });
+  };
 
   const handleAddItem = () => {
     if (!selectedItemId) return;
@@ -227,13 +249,26 @@ export default function NewSitePage() {
               </h3>
 
               <div className="space-y-4">
+                {/* Tent Kit Selector — auto-adds all components */}
+                <TentKitSelector
+                  onAddKitComponents={handleAddKitComponents}
+                  existingItemIds={deployedItems.map((d) => d.itemId)}
+                />
+
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 border-t border-gray-200" />
+                  <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">or add individual item</span>
+                  <div className="flex-1 border-t border-gray-200" />
+                </div>
+
                 {/* Item Selection Dropdown */}
                 <div className="flex gap-3">
                   <CategoryItemDropdown
                     items={items}
                     selectedItemId={selectedItemId}
                     onSelectItem={setSelectedItemId}
-                    placeholder="Select an item to deploy..."
+                    placeholder="Select an individual item to deploy..."
                   />
                   <button
                     type="button"
@@ -252,7 +287,14 @@ export default function NewSitePage() {
                     {deployedItems.map((item) => (
                       <div key={item.itemId} className="border rounded-lg p-4 bg-gray-50">
                         <div className="flex justify-between items-start mb-3">
-                          <div className="font-medium text-gray-900">{item.itemName}</div>
+                          <div>
+                            <div className="font-medium text-gray-900">{item.itemName}</div>
+                            {item.fromKitName && (
+                              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                ⛺ {item.fromKitName}
+                              </span>
+                            )}
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(item.itemId)}

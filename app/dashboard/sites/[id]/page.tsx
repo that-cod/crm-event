@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Link from "next/link";
+import SiteDeployButton from "./SiteDeployButton";
 
 export default async function SiteDetailPage({
   params,
@@ -50,17 +51,18 @@ export default async function SiteDetailPage({
         subtitle={site.location}
         action={
           <div className="flex gap-2 flex-wrap">
+            <SiteDeployButton siteId={site.id} siteName={site.name} />
             {site.siteInventory.length > 0 && (
               <Link
                 href={`/dashboard/challans/new?siteId=${site.id}`}
-                className="btn btn-primary"
+                className="btn btn-secondary"
               >
                 📄 Create Challan
               </Link>
             )}
             <Link
               href={`/dashboard/sites/${site.id}/inventory`}
-              className="btn btn-secondary"
+              className="btn btn-outline"
             >
               View Inventory
             </Link>
