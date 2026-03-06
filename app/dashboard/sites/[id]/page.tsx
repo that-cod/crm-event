@@ -63,6 +63,9 @@ export default async function SiteDetailPage({
               <Link
                 href={`/dashboard/challans/new?siteId=${site.id}`}
                 className="btn btn-primary"
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
               >
                 📄 Create Challan
@@ -71,7 +74,11 @@ export default async function SiteDetailPage({
             <Link
               href={`/dashboard/sites/${site.id}/inventory`}
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
               className="btn btn-outline"
+=======
+              className="btn btn-secondary"
+>>>>>>> Stashed changes
 =======
               className="btn btn-secondary"
 >>>>>>> Stashed changes
