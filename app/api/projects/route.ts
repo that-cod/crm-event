@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
     // If items provided, validate quantities available
     if (deployedItems && deployedItems.length > 0) {
-      const itemIds = deployedItems.map((di: any) => di.itemId);
+      const itemIds = deployedItems.map((di: { itemId: string; quantityDeployed: number }) => di.itemId);
       const itemsData = await prisma.item.findMany({
         where: { id: { in: itemIds } },
         select: { id: true, quantityAvailable: true, name: true },

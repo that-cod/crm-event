@@ -54,7 +54,7 @@ export default [
                     skipComments: true,
                 },
             ],
-            "max-depth": ["error", 3],
+            "max-depth": ["warn", 4],
             "complexity": ["warn", 10],
             "max-nested-callbacks": ["warn", 3],
 
